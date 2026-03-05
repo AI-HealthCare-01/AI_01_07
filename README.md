@@ -1,4 +1,3 @@
-# AI_01_07
 # AI Healthcare Project Template
 
 이 프로젝트는 AI 모델 추론(Inference) 워커와 FastAPI API 서버를 통합한 서비스 템플릿입니다. 
