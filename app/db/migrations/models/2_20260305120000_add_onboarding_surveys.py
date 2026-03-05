@@ -1,5 +1,5 @@
-from tortoise import BaseDBAsyncClient
 from aerich.utils import compress_dict, get_models_describe
+from tortoise import BaseDBAsyncClient
 
 RUN_IN_TRANSACTION = True
 

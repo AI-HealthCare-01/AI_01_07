@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -83,7 +83,7 @@ def _startup():
 
 
 @app.post("/infer/diabetes")
-def infer_diabetes(req: DiabetesInferRequest) -> Dict[str, Any]:
+def infer_diabetes(req: DiabetesInferRequest) -> dict[str, Any]:
     # 1) 모델 파일이 있으면 모델로 예측
     if _model is not None:
         x = {
@@ -119,7 +119,7 @@ def infer_diabetes(req: DiabetesInferRequest) -> Dict[str, Any]:
 
 
 @app.post("/infer/diabetes/binary")
-def infer_diabetes_binary(req: DiabetesBinaryInferRequest) -> Dict[str, Any]:
+def infer_diabetes_binary(req: DiabetesBinaryInferRequest) -> dict[str, Any]:
     # 1) AutoGluon 모델이 있으면 실제 모델 추론
     if _tabular_predictor is not None and pd is not None:
         try:

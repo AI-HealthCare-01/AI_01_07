@@ -37,8 +37,8 @@ class Meal(models.Model):
         "models.User", related_name="meals", null=True, on_delete=fields.SET_NULL
     )
 
-    label = fields.CharField(max_length=80, null=True)       # 음식명(선택)
-    calories_est = fields.IntField(null=True)                # 추정 칼로리(일단 하나만)
+    label = fields.CharField(max_length=80, null=True)  # 음식명(선택)
+    calories_est = fields.IntField(null=True)  # 추정 칼로리(일단 하나만)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

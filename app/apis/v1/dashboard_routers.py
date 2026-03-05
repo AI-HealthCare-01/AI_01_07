@@ -1,13 +1,14 @@
-from datetime import date, timedelta, datetime, time
 from collections import defaultdict
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, status
 from fastapi.responses import ORJSONResponse as Response
 
-from app.dtos.dashboard import DashboardOverviewResponse, RiskCard, CaloriesCard, TrendPoint
+from app.dtos.dashboard import CaloriesCard, DashboardOverviewResponse, RiskCard, TrendPoint
 from app.models.predictions import DiabetesPrediction, Meal
 
 dashboard_router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
 
 @dashboard_router.get("/overview", response_model=DashboardOverviewResponse, status_code=status.HTTP_200_OK)
 async def overview() -> Response:
