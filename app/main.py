@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
 
 from app.apis.v1 import v1_routers
@@ -36,3 +39,7 @@ async def openapi_redirect() -> RedirectResponse:
 @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
 async def chrome_devtools_probe() -> Response:
     return Response(status_code=204)
+
+
+BASE_DIR = Path(__file__).resolve().parent
+app.mount("/dashboard", StaticFiles(directory=BASE_DIR / "static" / "dashboard", html=True), name="dashboard")

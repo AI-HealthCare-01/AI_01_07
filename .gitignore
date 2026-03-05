@@ -16,3 +16,4 @@ wheels/
 # frontend local artifacts
 frontend/node_modules/
 frontend/.env.local
+artifacts/
