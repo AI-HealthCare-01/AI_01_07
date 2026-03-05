@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
@@ -11,6 +12,18 @@ from app.db.databases import initialize_tortoise
 app = FastAPI(
     default_response_class=ORJSONResponse, docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 initialize_tortoise(app)
 
 app.include_router(v1_routers)
