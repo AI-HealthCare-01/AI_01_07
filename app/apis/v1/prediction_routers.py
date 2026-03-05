@@ -1,8 +1,8 @@
 # app/apis/v1/prediction_routers.py
 import math
 import os
-import httpx
 
+import httpx
 from fastapi import APIRouter, status
 from fastapi.responses import ORJSONResponse as Response
 
@@ -46,7 +46,7 @@ async def run_diabetes(req: DiabetesRunRequest) -> Response:
         p_dm = float(out["p_diabetes"])
         top_factors = list(out.get("top_factors", []))
 
-    except Exception as e:
+    except Exception:
         # ✅ ai_worker 죽어도 서비스가 안 죽게: 기존 규칙기반 fallback
         h = req.height_cm / 100.0
         bmi = req.weight_kg / (h * h + 1e-9)
