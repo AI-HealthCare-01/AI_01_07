@@ -31,8 +31,14 @@ class Config(BaseSettings):
     DB_CONNECTION_POOL_MAXSIZE: int = 10
 
     COOKIE_DOMAIN: str = "localhost"
+    FRONTEND_URL: str = "http://localhost:5173"
 
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 14 * 24 * 60
     JWT_LEEWAY: int = 5
+
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    FIREBASE_CREDENTIALS_PATH: str = ""

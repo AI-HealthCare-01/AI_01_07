@@ -1,12 +1,12 @@
 from datetime import date, datetime
 from typing import Annotated
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, EmailStr, Field
 
 from app.dtos.base import BaseSerializerModel
 from app.models.users import Gender
 from app.validators.common import optional_after_validator
-from app.validators.user_validators import validate_birthday, validate_phone_number
+from app.validators.user_validators import validate_birthday, validate_password, validate_phone_number
 
 
 class UserUpdateRequest(BaseModel):
@@ -38,4 +38,56 @@ class UserInfoResponse(BaseSerializerModel):
     phone_number: str
     birthday: date
     gender: Gender
+    is_admin: bool
     created_at: datetime
+
+
+class UserPasswordChangeRequest(BaseModel):
+    old_password: Annotated[str, Field(min_length=8)]
+    new_password: Annotated[str, Field(min_length=8), AfterValidator(validate_password)]
+
+class UserPasswordVerifyRequest(BaseModel):
+    old_password: Annotated[str, Field(min_length=8)]
+
+
+class ProfileHistoryPoint(BaseSerializerModel):
+    date: date
+    water_ml: int
+    steps: int
+    exercise_minutes: int
+
+
+class ProfileRiskPoint(BaseSerializerModel):
+    date: date
+    risk_probability: float
+
+
+class UserProfileOverviewResponse(BaseSerializerModel):
+    id: int
+    name: str
+    email: str
+    birthday: date
+    gender: Gender
+    is_admin: bool
+    bmi: float | None
+    history_7d: list[ProfileHistoryPoint]
+    risk_trend_7d: list[ProfileRiskPoint]
+
+
+class AdminUserListItemResponse(BaseSerializerModel):
+    id: int
+    name: str
+    email: str
+    phone_number: str
+    gender: Gender
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+    last_login: datetime | None
+
+
+class AdminUserListResponse(BaseSerializerModel):
+    page: int
+    size: int
+    total: int
+    items: list[AdminUserListItemResponse]

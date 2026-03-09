@@ -1,14 +1,18 @@
 import os
 
 import httpx
-from fastapi import APIRouter, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, status
 from fastapi.responses import ORJSONResponse as Response
 
+from app.dependencies.security import get_request_user
 from app.dtos.onboarding import (
     OnboardingPredictionResponse,
     OnboardingSurveyRequest,
     RiskStage,
 )
+from app.models.users import User
 from app.models.predictions import OnboardingSurvey
 
 AI_WORKER_URL = os.getenv("AI_WORKER_URL", "http://127.0.0.1:9000")
@@ -64,7 +68,9 @@ def stage_message(stage: RiskStage) -> str:
 
 @onboarding_router.post("", response_model=OnboardingPredictionResponse, status_code=status.HTTP_201_CREATED)
 @onboarding_router.post("/run", response_model=OnboardingPredictionResponse, status_code=status.HTTP_201_CREATED)
-async def submit_onboarding(req: OnboardingSurveyRequest) -> Response:
+async def submit_onboarding(
+    req: OnboardingSurveyRequest, user: Annotated[User, Depends(get_request_user)]
+) -> Response:
     payload = to_model_features(req)
 
     risk_group = 0
@@ -86,7 +92,7 @@ async def submit_onboarding(req: OnboardingSurveyRequest) -> Response:
     actions = build_actions(req)
 
     saved = await OnboardingSurvey.create(
-        user=None,
+        user=user,
         age=req.age,
         gender=req.gender,
         height_cm=req.height_cm,
