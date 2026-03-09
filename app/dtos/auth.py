@@ -29,3 +29,11 @@ class LoginResponse(BaseModel):
 
 
 class TokenRefreshResponse(LoginResponse): ...
+
+
+class FirebaseGoogleLoginRequest(BaseModel):
+    id_token: str
+
+
+class FirebaseGoogleLoginResponse(LoginResponse):
+    email: EmailStr

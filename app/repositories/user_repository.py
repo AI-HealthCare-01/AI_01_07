@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Any
 
 from pydantic import EmailStr
+from tortoise.expressions import Q
 
 from app.core import config
 from app.models.users import Gender, User
@@ -65,3 +66,17 @@ class UserRepository:
             user.updated_at = datetime.now(config.TIMEZONE)
             update_fields.append(UPDATED_AT_FIELD)
             await user.save(update_fields=update_fields)
+
+    async def list_users_paginated(self, *, page: int, size: int, query: str | None = None) -> tuple[list[User], int]:
+        qs = self._model.all()
+        if query:
+            q = query.strip()
+            if q:
+                qs = qs.filter(Q(email__icontains=q) | Q(name__icontains=q) | Q(phone_number__icontains=q))
+
+        total = await qs.count()
+        users = await qs.order_by("-created_at").offset((page - 1) * size).limit(size)
+        return users, total
+
+    async def delete_user(self, user: User) -> None:
+        await user.delete()

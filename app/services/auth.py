@@ -1,10 +1,13 @@
+import secrets
+from datetime import date
+
 from fastapi.exceptions import HTTPException
 from pydantic import EmailStr
 from starlette import status
 from tortoise.transactions import in_transaction
 
 from app.dtos.auth import LoginRequest, SignUpRequest
-from app.models.users import User
+from app.models.users import Gender, User
 from app.repositories.user_repository import UserRepository
 from app.services.jwt import JwtService
 from app.utils.common import normalize_phone_number
@@ -72,3 +75,28 @@ class AuthService:
     async def check_phone_number_exists(self, phone_number: str) -> None:
         if await self.user_repo.exists_by_phone_number(phone_number):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용중인 휴대폰 번호입니다.")
+
+    async def login_or_signup_google(self, *, email: str, name: str | None = None) -> User:
+        user = await self.user_repo.get_user_by_email(email)
+        if user:
+            return user
+
+        default_name = (name or email.split("@")[0] or "google_user")[:20]
+        phone_number = await self._generate_unique_dummy_phone_number()
+        random_password = f"Google!{secrets.token_urlsafe(12)}"
+
+        async with in_transaction():
+            return await self.user_repo.create_user(
+                email=email,
+                hashed_password=hash_password(random_password),
+                name=default_name,
+                phone_number=phone_number,
+                gender=Gender.MALE,
+                birthday=date(2000, 1, 1),
+            )
+
+    async def _generate_unique_dummy_phone_number(self) -> str:
+        while True:
+            candidate = f"010{secrets.randbelow(100_000_000):08d}"
+            if not await self.user_repo.exists_by_phone_number(candidate):
+                return candidate
