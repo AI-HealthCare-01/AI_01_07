@@ -67,9 +67,7 @@ class UserRepository:
             update_fields.append(UPDATED_AT_FIELD)
             await user.save(update_fields=update_fields)
 
-    async def list_users_paginated(
-        self, *, page: int, size: int, query: str | None = None
-    ) -> tuple[list[User], int]:
+    async def list_users_paginated(self, *, page: int, size: int, query: str | None = None) -> tuple[list[User], int]:
         qs = self._model.all()
         if query:
             q = query.strip()

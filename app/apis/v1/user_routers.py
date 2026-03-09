@@ -43,6 +43,7 @@ async def change_user_me_password(
     await user_manage_service.change_password(user=user, data=request)
     return Response(content={"detail": "비밀번호가 변경되었습니다."}, status_code=status.HTTP_200_OK)
 
+
 @user_router.post("/me/password/verify", status_code=status.HTTP_200_OK)
 async def verify_user_me_password(
     request: UserPasswordVerifyRequest,

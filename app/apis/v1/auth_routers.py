@@ -168,9 +168,7 @@ async def google_callback(
             if not access_token:
                 raise ValueError("missing_google_access_token")
 
-            userinfo_resp = await client.get(
-                GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"}
-            )
+            userinfo_resp = await client.get(GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"})
             userinfo_resp.raise_for_status()
             userinfo = userinfo_resp.json()
     except Exception:

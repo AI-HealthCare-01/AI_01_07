@@ -46,6 +46,7 @@ class UserPasswordChangeRequest(BaseModel):
     old_password: Annotated[str, Field(min_length=8)]
     new_password: Annotated[str, Field(min_length=8), AfterValidator(validate_password)]
 
+
 class UserPasswordVerifyRequest(BaseModel):
     old_password: Annotated[str, Field(min_length=8)]
 

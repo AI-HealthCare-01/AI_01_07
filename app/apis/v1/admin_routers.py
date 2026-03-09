@@ -29,4 +29,3 @@ async def admin_list_users(
         items=[AdminUserListItemResponse.model_validate(user) for user in users],
     )
     return Response(content=data.model_dump(), status_code=status.HTTP_200_OK)
-

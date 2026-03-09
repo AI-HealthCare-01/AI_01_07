@@ -67,9 +67,7 @@ def stage_message(stage: RiskStage) -> str:
 
 @onboarding_router.post("", response_model=OnboardingPredictionResponse, status_code=status.HTTP_201_CREATED)
 @onboarding_router.post("/run", response_model=OnboardingPredictionResponse, status_code=status.HTTP_201_CREATED)
-async def submit_onboarding(
-    req: OnboardingSurveyRequest, user: Annotated[User, Depends(get_request_user)]
-) -> Response:
+async def submit_onboarding(req: OnboardingSurveyRequest, user: Annotated[User, Depends(get_request_user)]) -> Response:
     payload = to_model_features(req)
 
     risk_group = 0

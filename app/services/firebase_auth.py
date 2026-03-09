@@ -49,4 +49,3 @@ def verify_firebase_id_token(id_token: str) -> dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="유효하지 않은 Firebase ID 토큰입니다.",
         ) from exc
-

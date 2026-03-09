@@ -65,14 +65,14 @@ class UserManageService:
         start_dt = datetime.combine(start_date, time.min)
         end_dt = datetime.combine(today + timedelta(days=1), time.min)
 
-        checks = await DailyHealthCheck.filter(
-            user=user, record_date__gte=start_date, record_date__lte=today
-        ).order_by("record_date")
+        checks = await DailyHealthCheck.filter(user=user, record_date__gte=start_date, record_date__lte=today).order_by(
+            "record_date"
+        )
         history_by_date = {c.record_date: c for c in checks}
 
-        risk_rows = await OnboardingSurvey.filter(
-            user=user, created_at__gte=start_dt, created_at__lt=end_dt
-        ).order_by("created_at")
+        risk_rows = await OnboardingSurvey.filter(user=user, created_at__gte=start_dt, created_at__lt=end_dt).order_by(
+            "created_at"
+        )
         risk_by_date = defaultdict(float)
         for row in risk_rows:
             risk_by_date[row.created_at.date()] = float(row.risk_probability)
