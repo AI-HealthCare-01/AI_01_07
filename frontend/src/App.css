@@ -125,6 +125,42 @@ select {
   gap: 10px;
 }
 
+.bottomCta {
+  margin-top: 20px;
+}
+
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.homeStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.statCard {
+  border: 1px solid #d6deeb;
+  border-radius: 12px;
+  background: #f9fbff;
+  padding: 10px;
+}
+
+.statLabel {
+  color: #5b6477;
+  font-size: 13px;
+}
+
+.statValue {
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
 .center {
   text-align: center;
 }
@@ -194,5 +230,9 @@ select {
 
   .panel h1 {
     font-size: 24px;
+  }
+
+  .homeStats {
+    grid-template-columns: 1fr;
   }
 }
