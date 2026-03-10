@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { apiClient } from '../../api/client.js';
-import { healthRecordApi } from '../../api/healthRecordApi.js';
-import { getCurrentUserEmail, hasCompletedOnboarding } from '../../utils/onboardingGate.js';
-
-const READ_NOTI_KEY = 'read_notifications';
+import { useMemo, useState } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useNotifications } from '../../hooks/useNotifications.js';
+import { getCurrentUserEmail } from '../../utils/onboardingGate.js';
 
 const tabs = [
   { to: '/home', label: '홈' },
@@ -15,123 +12,17 @@ const tabs = [
 ];
 
 export default function MobileAppLayout() {
+  const navigate = useNavigate();
   const [isNotiOpen, setIsNotiOpen] = useState(false);
-  const [riskValue, setRiskValue] = useState(null);
-  const [today, setToday] = useState({ water_ml: 0, steps: 0, exercise_minutes: 0 });
-  const [swipeXMap, setSwipeXMap] = useState({});
-  const touchStartRef = useRef({});
-  const [readMap, setReadMap] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(READ_NOTI_KEY) || '{}');
-    } catch {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    apiClient
-      .get('/v1/users/me/profile-overview')
-      .then((res) => {
-        const trend = res.data?.risk_trend_7d || [];
-        const latest = trend.at(-1);
-        setRiskValue(latest ? Math.round((latest.risk_probability || 0) * 100) : null);
-      })
-      .catch(() => setRiskValue(null));
-
-    healthRecordApi
-      .getToday()
-      .then((res) => setToday(res))
-      .catch(() => setToday({ water_ml: 0, steps: 0, exercise_minutes: 0 }));
-  }, []);
-
-  const notifications = useMemo(() => {
-    const items = [];
-    const email = getCurrentUserEmail();
-    const onboardingDone = hasCompletedOnboarding(email);
-
-    items.push({
-      id: 'onboarding',
-      title: onboardingDone ? '설문이 완료되었습니다.' : '설문이 아직 완료되지 않았습니다.',
-      body: onboardingDone ? '홈에서 위험도 추이를 확인할 수 있어요.' : '설문을 완료하면 개인 맞춤 분석을 볼 수 있어요.',
-      level: onboardingDone ? 'success' : 'warn',
-    });
-
-    if (riskValue !== null) {
-      items.push({
-        id: 'risk',
-        title: `최신 위험도 ${riskValue}%`,
-        body: '홈 화면에서 7일 추이를 확인하세요.',
-        level: riskValue >= 70 ? 'danger' : riskValue >= 40 ? 'warn' : 'info',
-      });
-    }
-
-    items.push({
-      id: 'checkin',
-      title: `오늘 체크인 ${today.water_ml}ml · ${today.steps}걸음 · ${today.exercise_minutes}분`,
-      body: '체크인 페이지에서 오늘 기록을 업데이트할 수 있어요.',
-      level: 'info',
-    });
-
-    return items.map((item) => {
-      const key = `${item.id}:${item.title}`;
-      return { ...item, key, isRead: Boolean(readMap[key]) };
-    });
-  }, [riskValue, today, readMap]);
-
-  const unreadNotifications = notifications.filter((item) => !item.isRead);
-  const unreadCount = unreadNotifications.length;
-
-  const markNotificationRead = (key) => {
-    const next = { ...readMap, [key]: true };
-    setReadMap(next);
-    localStorage.setItem(READ_NOTI_KEY, JSON.stringify(next));
-    setSwipeXMap((prev) => {
-      const copied = { ...prev };
-      delete copied[key];
-      return copied;
-    });
-  };
-
-  const markAllRead = () => {
-    const next = { ...readMap };
-    notifications.forEach((item) => {
-      next[item.key] = true;
-    });
-    setReadMap(next);
-    localStorage.setItem(READ_NOTI_KEY, JSON.stringify(next));
-    setSwipeXMap({});
-  };
-
-  const onNotiTouchStart = (key) => (e) => {
-    const t = e.touches[0];
-    touchStartRef.current[key] = { x: t.clientX, y: t.clientY };
-  };
-
-  const onNotiTouchMove = (key) => (e) => {
-    const start = touchStartRef.current[key];
-    if (!start) return;
-    const t = e.touches[0];
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
-    if (Math.abs(dy) > Math.abs(dx)) return;
-    const clamped = Math.max(0, Math.min(140, dx));
-    setSwipeXMap((prev) => ({ ...prev, [key]: clamped }));
-  };
-
-  const onNotiTouchEnd = (key) => () => {
-    const moved = swipeXMap[key] || 0;
-    delete touchStartRef.current[key];
-    if (moved >= 80) {
-      markNotificationRead(key);
-      return;
-    }
-    setSwipeXMap((prev) => ({ ...prev, [key]: 0 }));
-  };
-
-  const onNotiTouchCancel = (key) => () => {
-    delete touchStartRef.current[key];
-    setSwipeXMap((prev) => ({ ...prev, [key]: 0 }));
-  };
+  const {
+    unreadNotifications,
+    unreadCount,
+    markNotificationRead,
+    markAllRead,
+  } = useNotifications();
+  const email = getCurrentUserEmail();
+  const avatarLabel = useMemo(() => (email ? email.charAt(0).toUpperCase() : '데'), [email]);
+  const previewNotifications = unreadNotifications.slice(0, 2);
 
   return (
     <div className="mobile-wrap">
@@ -151,8 +42,8 @@ export default function MobileAppLayout() {
             알림
             {unreadCount > 0 && <span className="noti-dot">{unreadCount}</span>}
           </button>
-          <button type="button" className="avatar-btn">
-            데
+          <button type="button" className="avatar-btn" onClick={() => navigate('/profile')}>
+            {avatarLabel}
           </button>
         </div>
       </header>
@@ -161,6 +52,16 @@ export default function MobileAppLayout() {
           <div className="noti-panel-head">
             <strong>알림 내역</strong>
             <div className="noti-actions">
+              <button
+                type="button"
+                className="noti-close-btn"
+                onClick={() => {
+                  setIsNotiOpen(false);
+                  navigate('/notifications');
+                }}
+              >
+                전체보기
+              </button>
               <button type="button" className="noti-read-all-btn" onClick={markAllRead}>
                 모두 읽음
               </button>
@@ -170,26 +71,18 @@ export default function MobileAppLayout() {
             </div>
           </div>
           <ul className="noti-list">
-            {unreadNotifications.length === 0 ? (
+            {previewNotifications.length === 0 ? (
               <li className="noti-item info">
                 <strong>새 알림이 없습니다.</strong>
               </li>
             ) : (
-              unreadNotifications.map((item) => (
-                <li
-                  key={item.key}
-                  className={`noti-item ${item.level}`}
-                  onTouchStart={onNotiTouchStart(item.key)}
-                  onTouchMove={onNotiTouchMove(item.key)}
-                  onTouchEnd={onNotiTouchEnd(item.key)}
-                  onTouchCancel={onNotiTouchCancel(item.key)}
-                  style={{
-                    transform: `translateX(${swipeXMap[item.key] || 0}px)`,
-                    opacity: 1 - Math.min((swipeXMap[item.key] || 0) / 220, 0.45),
-                  }}
-                >
+              previewNotifications.map((item) => (
+                <li key={item.key} className={`noti-item ${item.level}`}>
                   <strong>{item.title}</strong>
                   <p>{item.body}</p>
+                  <button type="button" className="noti-mark-btn" onClick={() => markNotificationRead(item.key)}>
+                    읽음
+                  </button>
                 </li>
               ))
             )}

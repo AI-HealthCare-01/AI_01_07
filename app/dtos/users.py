@@ -70,6 +70,7 @@ class UserProfileOverviewResponse(BaseSerializerModel):
     birthday: date
     gender: Gender
     is_admin: bool
+    onboarding_completed: bool
     bmi: float | None
     history_7d: list[ProfileHistoryPoint]
     risk_trend_7d: list[ProfileRiskPoint]

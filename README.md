@@ -174,3 +174,33 @@ chmod +x scripts/certbot.sh
 - **API 추가**: `app/apis/v1/` 아래에 새로운 라우터 파일을 생성하고 `app/apis/v1/__init__.py`에 등록하세요.
 - **DB 모델 추가**: `app/models/`에 Tortoise 모델을 정의하고 `app/db/databases.py`의 `MODELS` 리스트에 추가하세요.
 - **AI 로직 추가**: `ai_worker/tasks/`에 새로운 처리 로직을 작성하고 `ai_worker/main.py`에서 호출하도록 구성하세요.
+
+---
+
+## ✅ Firebase/Auth 배포 전 점검 체크리스트
+
+프론트엔드에서 Google 로그인(Firebase Authentication)을 사용할 때, 배포 전 아래 항목을 반드시 확인하세요.
+
+1. Firebase 프로젝트가 운영용인지 확인 (`projectId`)
+2. 프론트 환경변수 확인
+   - `VITE_FIREBASE_API_KEY`
+   - `VITE_FIREBASE_AUTH_DOMAIN`
+   - `VITE_FIREBASE_PROJECT_ID`
+   - `VITE_FIREBASE_APP_ID`
+   - 위 값들이 모두 같은 Firebase 프로젝트를 가리키는지 확인
+3. Firebase Console → Authentication → Sign-in method에서 `Google` 활성화
+4. Firebase Console → Authentication → Settings → `Authorized domains` 등록
+   - 로컬 개발: `localhost`, `127.0.0.1`
+   - 배포/스테이징 도메인: 예) `app.example.com`, `dev.example.com`
+   - 주의: 포트(`:5173`)는 등록하지 않고 host만 등록
+5. (필요 시) Google Cloud OAuth 동의화면 점검
+   - 테스트 모드면 테스트 사용자 계정 추가
+   - 운영 전환 상태 확인
+6. 배포 후 실제 로그인 테스트
+   - 시크릿 창에서 Google 로그인/회원가입 성공 확인
+   - 로그아웃 후 재로그인 확인
+   - 다른 Google 계정으로도 1회 검증
+7. 오류 확인
+   - `auth/unauthorized-domain`
+   - `auth/operation-not-allowed`
+   - `auth/popup-closed-by-user`

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { hasCompletedOnboarding, setCurrentUserEmail } from '../utils/onboardingGate.js';
+import { onboardingApi } from '../api/onboardingApi.js';
+import { hasCompletedOnboarding, setCurrentUserEmail, syncOnboardingCompleted } from '../utils/onboardingGate.js';
 
 export default function GoogleCallbackPage() {
   const navigate = useNavigate();
@@ -11,6 +12,18 @@ export default function GoogleCallbackPage() {
   const error = useMemo(() => searchParams.get('error') || '', [searchParams]);
 
   useEffect(() => {
+    const resolveAndMove = async () => {
+      try {
+        const completed = await onboardingApi.hasCompleted();
+        if (completed && email) {
+          syncOnboardingCompleted(email);
+        }
+        navigate(completed ? '/home' : '/survey', { replace: true });
+      } catch {
+        navigate(email && !hasCompletedOnboarding(email) ? '/survey' : '/home', { replace: true });
+      }
+    };
+
     if (error) {
       navigate(`/auth/login?error=${encodeURIComponent(error)}`, { replace: true });
       return;
@@ -25,7 +38,7 @@ export default function GoogleCallbackPage() {
     if (email) {
       setCurrentUserEmail(email);
     }
-    navigate(email && !hasCompletedOnboarding(email) ? '/survey' : '/home', { replace: true });
+    resolveAndMove();
   }, [accessToken, email, error, navigate]);
 
   return (
@@ -37,4 +50,3 @@ export default function GoogleCallbackPage() {
     </section>
   );
 }
-

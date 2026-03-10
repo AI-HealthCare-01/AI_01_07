@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUserEmail, hasCompletedOnboarding } from '../utils/onboardingGate.js';
+import { onboardingApi } from '../api/onboardingApi.js';
+import { getCurrentUserEmail, hasCompletedOnboarding, syncOnboardingCompleted } from '../utils/onboardingGate.js';
 
 export default function SurveyPage() {
   const navigate = useNavigate();
@@ -31,9 +32,25 @@ export default function SurveyPage() {
   };
 
   useEffect(() => {
-    if (hasCompletedOnboarding(getCurrentUserEmail())) {
+    const email = getCurrentUserEmail();
+    if (hasCompletedOnboarding(email)) {
       navigate('/home', { replace: true });
+      return;
     }
+
+    onboardingApi
+      .hasCompleted()
+      .then((completed) => {
+        if (completed) {
+          if (email) {
+            syncOnboardingCompleted(email);
+          }
+          navigate('/home', { replace: true });
+        }
+      })
+      .catch(() => {
+        // Ignore network errors and keep survey accessible.
+      });
   }, [navigate]);
 
   return (

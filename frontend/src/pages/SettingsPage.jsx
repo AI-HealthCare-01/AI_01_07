@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
+import { clearCurrentUserEmail } from '../utils/onboardingGate.js';
 
 const METRIC_META = {
   water_ml: { label: '수분섭취', max: 5000, unit: 'ml' },
   steps: { label: '걸음수', max: 30000, unit: '걸음' },
   exercise_minutes: { label: '운동시간', max: 180, unit: '분' },
+};
+const NOTI_PREF_KEY = 'notification_preferences';
+const DEFAULT_NOTI_PREFS = {
+  risk_alert: true,
+  checkin_reminder: true,
+  weekly_summary: true,
 };
 
 function toShortDate(dateText) {
@@ -87,6 +94,13 @@ export default function SettingsPage() {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
+  const [notiPrefs, setNotiPrefs] = useState(() => {
+    try {
+      return { ...DEFAULT_NOTI_PREFS, ...(JSON.parse(localStorage.getItem(NOTI_PREF_KEY) || '{}')) };
+    } catch {
+      return DEFAULT_NOTI_PREFS;
+    }
+  });
 
   useEffect(() => {
     apiClient
@@ -98,7 +112,8 @@ export default function SettingsPage() {
   const onLogout = () => {
     const confirmed = window.confirm('로그아웃하시겠습니까?');
     if (!confirmed) return;
-    localStorage.clear();
+    localStorage.removeItem('access_token');
+    clearCurrentUserEmail();
     navigate('/auth/login', { replace: true });
   };
 
@@ -185,6 +200,11 @@ export default function SettingsPage() {
   const bmiPct = Math.min(100, Math.max(0, ((bmi - 15) / 20) * 100));
   const isPasswordMatch = newPasswordConfirm.length > 0 && newPassword === newPasswordConfirm;
   const isPasswordMismatch = newPasswordConfirm.length > 0 && newPassword !== newPasswordConfirm;
+  const toggleNotiPref = (field) => {
+    const next = { ...notiPrefs, [field]: !notiPrefs[field] };
+    setNotiPrefs(next);
+    localStorage.setItem(NOTI_PREF_KEY, JSON.stringify(next));
+  };
 
   return (
     <>
@@ -200,6 +220,56 @@ export default function SettingsPage() {
         <button type="button" className="pill-btn full-width" onClick={openPasswordModal}>
           회원정보 수정
         </button>
+        </article>
+
+        <article className="card">
+        <div className="card-head">
+          <h3>알림 설정</h3>
+          <Link to="/notifications" className="pill-btn">
+            알림 센터
+          </Link>
+        </div>
+        <div className="setting-list">
+          <div className="setting-row">
+            <div>
+              <strong>위험도 알림</strong>
+              <p className="muted">위험도 상승 시 즉시 알림을 보냅니다.</p>
+            </div>
+            <button
+              type="button"
+              className={`toggle-btn ${notiPrefs.risk_alert ? 'on' : 'off'}`}
+              onClick={() => toggleNotiPref('risk_alert')}
+            >
+              {notiPrefs.risk_alert ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          <div className="setting-row">
+            <div>
+              <strong>체크인 리마인드</strong>
+              <p className="muted">오늘 기록이 없으면 리마인드합니다.</p>
+            </div>
+            <button
+              type="button"
+              className={`toggle-btn ${notiPrefs.checkin_reminder ? 'on' : 'off'}`}
+              onClick={() => toggleNotiPref('checkin_reminder')}
+            >
+              {notiPrefs.checkin_reminder ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          <div className="setting-row">
+            <div>
+              <strong>주간 요약 알림</strong>
+              <p className="muted">일주일 건강 요약 알림을 받습니다.</p>
+            </div>
+            <button
+              type="button"
+              className={`toggle-btn ${notiPrefs.weekly_summary ? 'on' : 'off'}`}
+              onClick={() => toggleNotiPref('weekly_summary')}
+            >
+              {notiPrefs.weekly_summary ? 'ON' : 'OFF'}
+            </button>
+          </div>
+        </div>
         </article>
 
         <article className="card">

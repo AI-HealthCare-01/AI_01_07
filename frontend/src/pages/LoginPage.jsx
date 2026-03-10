@@ -2,8 +2,9 @@ import { signInWithPopup } from 'firebase/auth';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
+import { onboardingApi } from '../api/onboardingApi.js';
 import { firebaseAuth, googleProvider } from '../lib/firebase.js';
-import { hasCompletedOnboarding, setCurrentUserEmail } from '../utils/onboardingGate.js';
+import { hasCompletedOnboarding, setCurrentUserEmail, syncOnboardingCompleted } from '../utils/onboardingGate.js';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -13,6 +14,18 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const oauthError = useMemo(() => searchParams.get('error') || '', [searchParams]);
 
+  const resolveNextPath = async (userEmail) => {
+    try {
+      const completed = await onboardingApi.hasCompleted();
+      if (completed && userEmail) {
+        syncOnboardingCompleted(userEmail);
+      }
+      return completed ? '/home' : '/survey';
+    } catch {
+      return hasCompletedOnboarding(userEmail) ? '/home' : '/survey';
+    }
+  };
+
   const onLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -21,7 +34,8 @@ export default function LoginPage() {
       const response = await apiClient.post('/v1/auth/login', { email, password });
       localStorage.setItem('access_token', response.data.access_token);
       setCurrentUserEmail(email);
-      navigate(hasCompletedOnboarding(email) ? '/home' : '/survey');
+      const nextPath = await resolveNextPath(email);
+      navigate(nextPath);
     } catch (err) {
       setError(err?.response?.data?.detail || '로그인 실패');
     }
@@ -41,7 +55,8 @@ export default function LoginPage() {
       localStorage.setItem('access_token', response.data.access_token);
       const googleEmail = response.data.email || result.user.email || '';
       setCurrentUserEmail(googleEmail);
-      navigate(googleEmail && !hasCompletedOnboarding(googleEmail) ? '/survey' : '/home');
+      const nextPath = await resolveNextPath(googleEmail);
+      navigate(nextPath);
     } catch (err) {
       setError(err?.response?.data?.detail || err?.message || 'Google 로그인 실패');
     }

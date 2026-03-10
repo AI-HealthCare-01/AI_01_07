@@ -1,12 +1,13 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AdminUsersPage from './pages/AdminUsersPage.jsx';
-import MobileAppLayout from './components/layout/MobileAppLayout.jsx';
+import AdaptiveAppLayout from './components/layout/AdaptiveAppLayout.jsx';
 import ChallengePage from './pages/ChallengePage.jsx';
 import CheckinPage from './pages/CheckinPage.jsx';
 import FoodPage from './pages/FoodPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
+import NotificationsPage from './pages/NotificationsPage.jsx';
 import SignupDonePage from './pages/SignupDonePage.jsx';
 import SignupPage from './pages/SignupPage.jsx';
 import GoogleCallbackPage from './pages/GoogleCallbackPage.jsx';
@@ -58,7 +59,7 @@ export default function App() {
           </RequireAuth>
         )}
       />
-      <Route element={<MobileAppLayout />}>
+      <Route element={<AdaptiveAppLayout />}>
         <Route
           path="/admin/users"
           element={(
@@ -104,6 +105,14 @@ export default function App() {
           element={(
             <RequireAuth>
               <SettingsPage />
+            </RequireAuth>
+          )}
+        />
+        <Route
+          path="/notifications"
+          element={(
+            <RequireAuth>
+              <NotificationsPage />
             </RequireAuth>
           )}
         />
