@@ -7,7 +7,6 @@ import type { FoodResponse } from "../types/food";
 type FoodResultLocationState = {
   data?: FoodResponse;
   previewUrl?: string;
-  fileName?: string;
 };
 
 const PASTEL_COLORS = ["#FFD6A5", "#BDE0FE", "#CDEAC0"];
@@ -18,7 +17,6 @@ export default function FoodResultPage() {
   const state = location.state as FoodResultLocationState | null;
   const data = state?.data ?? null;
   const previewUrl = state?.previewUrl;
-  const fileName = state?.fileName;
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -124,17 +122,11 @@ export default function FoodResultPage() {
 
       <div className="card">
         {previewUrl && (
-          <div style={{ marginBottom: 10 }}>
+          <div className="food-result-preview-wrap">
             <img
               src={previewUrl}
-              alt={fileName ?? "업로드한 식단 사진"}
-              style={{
-                width: "100%",
-                maxHeight: 320,
-                objectFit: "cover",
-                borderRadius: 12,
-                border: "1px solid #d6deeb",
-              }}
+              alt="업로드한 식단 사진 미리보기"
+              className="food-result-preview-image"
             />
           </div>
         )}

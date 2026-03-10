@@ -28,7 +28,7 @@ export default function FoodUploadPage() {
 
       const data = (await res.json()) as FoodResponse;
       const previewUrl = URL.createObjectURL(file);
-      navigate("/food/result", { state: { data, previewUrl, fileName: file.name } });
+      navigate("/food/result", { state: { data, previewUrl } });
     } catch (e) {
       setError(e instanceof Error ? e.message : "분석 중 오류가 발생했습니다.");
     } finally {

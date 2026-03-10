@@ -149,6 +149,50 @@ export default function FoodPage() {
       ]
     : [];
 
+  const recommendationMeta = resultData?.recommendation?.warning
+    ? {
+        title: '식단 체크',
+        guide: '다음 끼니에서 한두 가지만 먼저 보완해 보세요. 기록을 이어가면 변화가 더 잘 보여요.',
+      }
+    : {
+        title: '식단 체크',
+        guide: '현재 식사 흐름은 안정적이에요. 지금처럼 균형을 유지해 보세요.',
+      };
+
+  const formattedRecommendationMessage = resultData?.recommendation?.message
+    ? resultData.recommendation.message
+        .replace(
+          /(벗어났어요|편차가 있어요)\s*\((.*?)\)\./,
+          (_, prefix, details) => {
+            const compactDetails = details
+              .split(', ')
+              .map((item) => item.replace(/(.+?)\(([-+]?\d+(?:\.\d+)?%p?)\)/, '$1 $2').replace(/%p/g, '%'))
+              .join(' · ');
+            return `${prefix}.\n${compactDetails}`;
+          },
+        )
+        .replace(/다음 끼니에서 아래 항목을 우선 보완해\s*보세요\./, '\n다음 끼니에서 아래 항목을 우선 보완해보세요.')
+        .split(/(?<=[.!?])\s+/)
+        .map((sentence) => sentence.trim())
+        .filter(Boolean)
+        .join('\n')
+    : '';
+
+  const formattedRecommendationGuide = recommendationMeta.guide
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .join('\n');
+
+  function renderBoldNumbers(text) {
+    return text.split(/(\d+(?:\.\d+)?%p?)/g).map((part, index) => {
+      if (/^\d+(?:\.\d+)?%p?$/.test(part)) {
+        return <strong key={`num-${index}`}>{part}</strong>;
+      }
+      return <span key={`txt-${index}`}>{part}</span>;
+    });
+  }
+
   return (
     <section className="stack">
       <article className="card food-card">
@@ -176,7 +220,7 @@ export default function FoodPage() {
           onClick={() => inputRef.current?.click()}
         >
           {previewUrl ? (
-            <img src={previewUrl} alt={file?.name || '업로드한 음식 사진'} className="food-preview-image" />
+            <img src={previewUrl} alt="업로드한 음식 사진 미리보기" className="food-preview-image" />
           ) : (
             <div className="food-upload-placeholder">
               <strong>사진 클릭 또는 업로드</strong>
@@ -186,7 +230,7 @@ export default function FoodPage() {
         </button>
 
         <div className="food-upload-meta">
-          <span>{file ? file.name : '선택된 파일 없음'}</span>
+          <span>{file ? '사진 선택 완료' : '선택된 파일 없음'}</span>
           {file && (
             <button type="button" className="pill-btn" onClick={() => onPickFile(null)}>
               다시 선택
@@ -289,13 +333,25 @@ export default function FoodPage() {
               </>
             )}
 
-            <div className={resultData.recommendation.warning ? 'error' : 'food-recommend-card'}>
-              <strong>한 줄 코멘트</strong>
-              <p>{resultData.recommendation.message}</p>
+            <div className={`food-recommend-card ${resultData.recommendation.warning ? 'warning' : 'ok'}`}>
+              <div className="food-recommend-head">
+                <strong>{recommendationMeta.title}</strong>
+                <span>{formattedRecommendationGuide}</span>
+              </div>
+              <p className="food-recommend-message">
+                {formattedRecommendationMessage
+                  .split('\n')
+                  .filter(Boolean)
+                  .map((line, index) => (
+                    <span key={`line-${index}`} className="food-recommend-line">
+                      {renderBoldNumbers(line)}
+                    </span>
+                  ))}
+              </p>
               {resultData.recommendation.suggestions.length > 0 && (
                 <div className="food-suggestion-list">
                   {resultData.recommendation.suggestions.map((item) => (
-                    <span key={item} className="pill-btn">{item}</span>
+                    <span key={item} className="food-hashtag">#{item.replace(/\s+/g, '')}</span>
                   ))}
                 </div>
               )}
