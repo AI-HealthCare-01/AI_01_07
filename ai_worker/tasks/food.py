@@ -27,17 +27,75 @@ def macro_ratio_by_kcal(carb_g: float, protein_g: float, fat_g: float) -> dict[s
     }
 
 
-def recommendation(carb_pct: float) -> dict[str, Any]:
-    if carb_pct >= 65.0:
+def recommendation(carb_pct: float, protein_pct: float, fat_pct: float) -> dict[str, Any]:
+    # AMDR(성인 일반 권장): 탄수화물 45~65%, 단백질 10~35%, 지방 20~35%
+    carb_low, carb_high = 45.0, 65.0
+    protein_low, protein_high = 10.0, 35.0
+    fat_low, fat_high = 20.0, 35.0
+
+    def _as_issue(name: str, pct: float, low: float, high: float) -> tuple[str, float] | None:
+        if pct > high:
+            return (f"{name} 과다(+{round(pct - high, 1)}%p)", pct - high)
+        if pct < low:
+            return (f"{name} 부족(-{round(low - pct, 1)}%p)", low - pct)
+        return None
+
+    issues: list[tuple[str, float]] = []
+    suggestions: list[str] = []
+
+    carb_issue = _as_issue("탄수화물", carb_pct, carb_low, carb_high)
+    if carb_issue:
+        issues.append(carb_issue)
+        if carb_pct > carb_high:
+            suggestions.extend(["밥/면 20~30% 줄이기", "단백질 반찬 1가지 추가", "비전분 채소 함께 섭취"])
+        else:
+            suggestions.extend(["통곡물/잡곡밥 보충", "운동 전후 과일 1회분 추가"])
+
+    protein_issue = _as_issue("단백질", protein_pct, protein_low, protein_high)
+    if protein_issue:
+        issues.append(protein_issue)
+        if protein_pct > protein_high:
+            suggestions.extend(["가공육 줄이기", "채소/통곡물과 함께 섭취"])
+        else:
+            suggestions.extend(["계란/두부/콩류 추가", "생선/살코기 또는 그릭요거트 추가"])
+
+    fat_issue = _as_issue("지방", fat_pct, fat_low, fat_high)
+    if fat_issue:
+        issues.append(fat_issue)
+        if fat_pct > fat_high:
+            suggestions.extend(["튀김/크림 소스 줄이기", "구이/찜 위주 선택"])
+        else:
+            suggestions.extend(["견과류 소량 추가", "올리브유/아보카도 등 불포화지방 보충"])
+
+    if not issues:
         return {
-            "warning": True,
-            "message": "탄수화물 비중이 높아요. 다음 끼니는 단백질/식이섬유를 보강해 균형을 맞춰보세요.",
-            "suggestions": ["계란", "닭가슴살", "두부/콩류", "생선", "그릭요거트", "채소/샐러드"],
+            "warning": False,
+            "message": "탄/단/지 비율이 권장 범위에 가깝습니다. 균형 잡힌 식사를 잘 유지하고 있어요.",
+            "suggestions": ["현재 식단 패턴 유지", "수분 섭취", "다양한 채소 곁들이기"],
         }
+
+    # 편차가 큰 항목(>=10%p)은 강한 주의, 그 외는 완만한 보완 권고로 처리한다.
+    severity_score = sum(2 if deviation >= 10.0 else 1 for _, deviation in issues)
+    warning = severity_score >= 2
+
+    # 중복 제안을 제거하면서 순서를 유지하고, 우선순위가 높은 항목만 간결히 노출한다.
+    deduped_suggestions = list(dict.fromkeys(suggestions))[:6]
+    issue_text = ", ".join(label for label, _ in issues)
+    if warning:
+        message = (
+            f"탄/단/지 비율이 권장 범위에서 벗어났어요({issue_text}). "
+            "다음 끼니에서 아래 항목을 우선 보완해보세요."
+        )
+    else:
+        message = (
+            f"탄/단/지 비율은 전반적으로 양호하지만 약간의 편차가 있어요({issue_text}). "
+            "다음 끼니에서 가볍게 보완해보세요."
+        )
+
     return {
-        "warning": False,
-        "message": "탄/단/지 비율이 비교적 균형적이에요. 오늘도 꾸준히 유지해요!",
-        "suggestions": ["물", "채소", "단백질 한 가지 추가"],
+        "warning": warning,
+        "message": message,
+        "suggestions": deduped_suggestions,
     }
 
 
@@ -174,7 +232,7 @@ class FoodPredictor:
         fat_g = float(nut.get("fat_g", 0))
         kcal = float(nut.get("kcal", 0))
         ratio = macro_ratio_by_kcal(carb_g, protein_g, fat_g)
-        rec = recommendation(ratio["carb_pct"])
+        rec = recommendation(ratio["carb_pct"], ratio["protein_pct"], ratio["fat_pct"])
 
         return {
             "top3": [],
@@ -219,7 +277,7 @@ class FoodPredictor:
         kcal = float(nut.get("kcal", 0))
 
         ratio = macro_ratio_by_kcal(carb_g, protein_g, fat_g)
-        rec = recommendation(ratio["carb_pct"])
+        rec = recommendation(ratio["carb_pct"], ratio["protein_pct"], ratio["fat_pct"])
 
         return {
             "top3": top3,
