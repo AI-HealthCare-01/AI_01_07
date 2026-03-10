@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import io
 import os
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from PIL import Image
 from pydantic import BaseModel
+
+from ai_worker.tasks.food import FoodPredictor
 
 # 선택: 실제 모델 파일이 없을 때도 서버는 뜨게(테스트 편함)
 try:
@@ -27,6 +31,7 @@ MODEL_PATH = Path("artifacts/diabetes/model.joblib")
 AUTOML_MODEL_PATH = Path(os.getenv("DIABETES_MODEL_PATH", "artifacts/diabetes/jaram_binary_model"))
 _model = None
 _tabular_predictor = None
+food_predictor = FoodPredictor()
 
 
 class DiabetesInferRequest(BaseModel):
@@ -50,6 +55,10 @@ class DiabetesBinaryInferRequest(BaseModel):
     BD1_11: float
     pa_aerobic: int
     N_SUGAR: float
+
+
+class FoodReanalyzeRequest(BaseModel):
+    menu_name: str
 
 
 def bmi(height_cm: float, weight_kg: float) -> float:
@@ -169,3 +178,22 @@ def infer_diabetes_binary(req: DiabetesBinaryInferRequest) -> dict[str, Any]:
         "risk_probability": risk_probability,
         "backend": "fallback",
     }
+
+
+@app.post("/infer/food")
+async def infer_food(file: Annotated[UploadFile, File(...)]):
+    try:
+        content = await file.read()
+        img = Image.open(io.BytesIO(content)).convert("RGB")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid image file") from exc
+
+    return food_predictor.analyze(img)
+
+
+@app.post("/infer/food/reanalyze")
+async def infer_food_reanalyze(req: FoodReanalyzeRequest):
+    menu_name = req.menu_name.strip()
+    if not menu_name:
+        raise HTTPException(status_code=400, detail="menu_name is required")
+    return food_predictor.reanalyze_menu(menu_name)
