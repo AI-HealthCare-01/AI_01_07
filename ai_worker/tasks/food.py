@@ -129,10 +129,7 @@ class FoodPredictor:
             return self._heuristic_nutrition(menu_name)
 
         model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        system = (
-            "You are a nutrition assistant. Return only JSON with keys: "
-            "name_ko, kcal, carb_g, protein_g, fat_g."
-        )
+        system = "You are a nutrition assistant. Return only JSON with keys: name_ko, kcal, carb_g, protein_g, fat_g."
         user = f"메뉴명: {menu_name}. 일반적인 1인분 기준 영양소를 추정해줘."
         payload = {
             "model": model,
