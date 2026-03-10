@@ -1,19 +1,324 @@
+import { useEffect, useRef, useState } from 'react';
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+
+const PASTEL_COLORS = ['#FFD6A5', '#BDE0FE', '#CDEAC0'];
+
 export default function FoodPage() {
+  const inputRef = useRef(null);
+  const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [resultData, setResultData] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [menuInput, setMenuInput] = useState('');
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [reanalyzeError, setReanalyzeError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  function onPickFile(nextFile) {
+    setFile(nextFile);
+    setError('');
+    setResultData(null);
+    setEditing(false);
+    setReanalyzeError('');
+    setSaveMessage('');
+    setSaveError('');
+
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    if (nextFile) {
+      setPreviewUrl(URL.createObjectURL(nextFile));
+      return;
+    }
+
+    setPreviewUrl('');
+  }
+
+  async function submit() {
+    if (!file) return;
+
+    setError('');
+    setSaveMessage('');
+    setSaveError('');
+    setLoading(true);
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+
+      const res = await fetch('/api/v1/food/analyze', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const text = await res.text();
+        setError(text || '분석 요청에 실패했습니다.');
+        return;
+      }
+
+      const data = await res.json();
+      setResultData(data);
+      setMenuInput(data?.chosen?.name_ko || data?.chosen?.label || '');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '분석 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function reanalyzeMenu() {
+    const menuName = menuInput.trim();
+    if (!menuName) {
+      setReanalyzeError('메뉴명을 입력해주세요.');
+      return;
+    }
+
+    setReanalyzeError('');
+    setReanalyzing(true);
+
+    try {
+      const res = await fetch('/api/v1/food/reanalyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ menu_name: menuName }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        setReanalyzeError(text || '재분석에 실패했습니다.');
+        return;
+      }
+
+      const next = await res.json();
+      setResultData(next);
+      setEditing(false);
+    } catch (e) {
+      setReanalyzeError(e instanceof Error ? e.message : '재분석 중 오류가 발생했습니다.');
+    } finally {
+      setReanalyzing(false);
+    }
+  }
+
+  async function saveFood() {
+    if (!resultData) return;
+
+    setSaveMessage('');
+    setSaveError('');
+    setSaving(true);
+
+    try {
+      const res = await fetch('/api/v1/food/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: resultData.chosen.label,
+          name_ko: resultData.chosen.name_ko,
+          kcal: resultData.nutrition?.kcal ?? null,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        setSaveError(text || '저장에 실패했습니다.');
+        return;
+      }
+
+      setSaveMessage('오늘 식단 기록으로 저장되었습니다.');
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '저장 중 오류가 발생했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const chartData = resultData?.macro_ratio_kcal
+    ? [
+        { name: '탄수화물', value: resultData.macro_ratio_kcal.carb_pct },
+        { name: '단백질', value: resultData.macro_ratio_kcal.protein_pct },
+        { name: '지방', value: resultData.macro_ratio_kcal.fat_pct },
+      ]
+    : [];
+
   return (
     <section className="stack">
-      <article className="card">
-        <h2>식단 분석</h2>
-        <p className="muted">사진 업로드/검색 입력 기반 분석 화면</p>
-        <div className="upload-box">사진 클릭 또는 드래그 업로드</div>
+      <article className="card food-card">
+        <div className="card-head">
+          <div>
+            <strong>식단 분석</strong>
+            <p className="food-subtitle">사진 한 장으로 음식 분석과 영양소 비율을 확인합니다.</p>
+          </div>
+          {resultData?.source && (
+            <span className="pill-btn">{resultData.source === 'db' ? '영양 DB' : 'AI 추정'}</span>
+          )}
+        </div>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="food-file-input"
+          onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+        />
+
+        <button
+          type="button"
+          className="food-upload-trigger"
+          onClick={() => inputRef.current?.click()}
+        >
+          {previewUrl ? (
+            <img src={previewUrl} alt={file?.name || '업로드한 음식 사진'} className="food-preview-image" />
+          ) : (
+            <div className="food-upload-placeholder">
+              <strong>사진 클릭 또는 업로드</strong>
+              <span>카메라 촬영 또는 앨범에서 음식 사진을 선택하세요.</span>
+            </div>
+          )}
+        </button>
+
+        <div className="food-upload-meta">
+          <span>{file ? file.name : '선택된 파일 없음'}</span>
+          {file && (
+            <button type="button" className="pill-btn" onClick={() => onPickFile(null)}>
+              다시 선택
+            </button>
+          )}
+        </div>
+
+        <button type="button" className="save-btn full-width" onClick={submit} disabled={!file || loading}>
+          {loading ? '분석 중...' : '분석 시작'}
+        </button>
+
+        {error && <div className="error">{error}</div>}
       </article>
 
-      <article className="card">
-        <div className="card-head">
-          <strong>오늘의 식단 기록</strong>
-          <strong className="orange">총 0 kcal</strong>
-        </div>
-        <p className="muted">오늘 기록된 식단이 없습니다.</p>
-      </article>
+      {resultData && (
+        <>
+          <article className="card food-card">
+            <strong>분석 결과</strong>
+            <p className="food-subtitle">
+              Top-3: {resultData.top3.map((item) => `${item.label}(${Math.round(item.confidence * 100)}%)`).join(', ')}
+            </p>
+
+            <div className="food-result-title">
+              <div>
+                <h3>{resultData.chosen.name_ko ?? resultData.chosen.label}</h3>
+                <p className="food-subtitle">모델이 가장 가능성이 높다고 본 메뉴입니다.</p>
+              </div>
+              <button type="button" className="pill-btn" onClick={() => setEditing((prev) => !prev)}>
+                {editing ? '수정 닫기' : '메뉴 수정'}
+              </button>
+            </div>
+
+            {editing && (
+              <div className="food-edit-card">
+                <label htmlFor="menu-name-input">메뉴명 수정</label>
+                <input
+                  id="menu-name-input"
+                  type="text"
+                  value={menuInput}
+                  onChange={(e) => setMenuInput(e.target.value)}
+                  placeholder="예: 김치볶음밥, 비빔밥"
+                />
+                <button type="button" className="save-btn full-width" onClick={reanalyzeMenu} disabled={reanalyzing}>
+                  {reanalyzing ? '재분석 중...' : '재분석 적용'}
+                </button>
+                {reanalyzeError && <div className="error">{reanalyzeError}</div>}
+              </div>
+            )}
+
+            {!resultData.nutrition && (
+              <div className="food-empty-state">
+                영양 매핑이 아직 없습니다. 영양 DB에 메뉴를 추가하면 비율 차트가 바로 표시됩니다.
+              </div>
+            )}
+
+            {resultData.nutrition && resultData.macro_ratio_kcal && (
+              <>
+                <div className="food-macro-summary">
+                  <div>
+                    <span>칼로리</span>
+                    <strong>{resultData.nutrition.kcal} kcal</strong>
+                  </div>
+                  <div>
+                    <span>탄수화물</span>
+                    <strong>{resultData.nutrition.carb_g}g</strong>
+                  </div>
+                  <div>
+                    <span>단백질</span>
+                    <strong>{resultData.nutrition.protein_g}g</strong>
+                  </div>
+                  <div>
+                    <span>지방</span>
+                    <strong>{resultData.nutrition.fat_g}g</strong>
+                  </div>
+                </div>
+
+                <div className="food-chart-wrap">
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie dataKey="value" data={chartData} innerRadius={58} outerRadius={88} paddingAngle={3}>
+                        {chartData.map((entry, index) => (
+                          <Cell key={entry.name} fill={PASTEL_COLORS[index % PASTEL_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `${value}%`} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="food-ratio-grid">
+                  {chartData.map((item, index) => (
+                    <div key={item.name} className="food-ratio-item">
+                      <span className="food-ratio-dot" style={{ background: PASTEL_COLORS[index % PASTEL_COLORS.length] }} />
+                      <span>{item.name}</span>
+                      <strong>{item.value}%</strong>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className={resultData.recommendation.warning ? 'error' : 'food-recommend-card'}>
+              <strong>한 줄 코멘트</strong>
+              <p>{resultData.recommendation.message}</p>
+              {resultData.recommendation.suggestions.length > 0 && (
+                <div className="food-suggestion-list">
+                  {resultData.recommendation.suggestions.map((item) => (
+                    <span key={item} className="pill-btn">{item}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button type="button" className="save-btn full-width" onClick={saveFood} disabled={saving}>
+              {saving ? '저장 중...' : '오늘 식단으로 저장'}
+            </button>
+            {saveMessage && <div className="card">{saveMessage}</div>}
+            {saveError && <div className="error">{saveError}</div>}
+          </article>
+
+          <article className="card">
+            <div className="card-head">
+              <strong>오늘의 식단 기록</strong>
+              <strong>{resultData.nutrition?.kcal ?? 0} kcal</strong>
+            </div>
+            <p className="food-subtitle">
+              업로드한 사진 기준으로 가장 최근 분석 결과를 보여줍니다.
+            </p>
+          </article>
+        </>
+      )}
     </section>
   );
 }
