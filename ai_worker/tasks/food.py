@@ -27,45 +27,43 @@ def macro_ratio_by_kcal(carb_g: float, protein_g: float, fat_g: float) -> dict[s
     }
 
 
+def _as_issue(name: str, pct: float, low: float, high: float) -> tuple[str, float] | None:
+    if pct > high:
+        return (f"{name} 과다(+{round(pct - high, 1)}%p)", pct - high)
+    if pct < low:
+        return (f"{name} 부족(-{round(low - pct, 1)}%p)", low - pct)
+    return None
+
+
+def _issue_and_suggestions(
+    name: str,
+    pct: float,
+    low: float,
+    high: float,
+    high_suggestions: list[str],
+    low_suggestions: list[str],
+) -> tuple[tuple[str, float] | None, list[str]]:
+    issue = _as_issue(name, pct, low, high)
+    if issue is None:
+        return None, []
+    return issue, high_suggestions if pct > high else low_suggestions
+
+
 def recommendation(carb_pct: float, protein_pct: float, fat_pct: float) -> dict[str, Any]:
     # AMDR(성인 일반 권장): 탄수화물 45~65%, 단백질 10~35%, 지방 20~35%
-    carb_low, carb_high = 45.0, 65.0
-    protein_low, protein_high = 10.0, 35.0
-    fat_low, fat_high = 20.0, 35.0
-
-    def _as_issue(name: str, pct: float, low: float, high: float) -> tuple[str, float] | None:
-        if pct > high:
-            return (f"{name} 과다(+{round(pct - high, 1)}%p)", pct - high)
-        if pct < low:
-            return (f"{name} 부족(-{round(low - pct, 1)}%p)", low - pct)
-        return None
+    nutrient_rules = [
+        ("탄수화물", carb_pct, 45.0, 65.0, ["밥/면 20~30% 줄이기", "단백질 반찬 1가지 추가", "비전분 채소 함께 섭취"], ["통곡물/잡곡밥 보충", "운동 전후 과일 1회분 추가"]),
+        ("단백질", protein_pct, 10.0, 35.0, ["가공육 줄이기", "채소/통곡물과 함께 섭취"], ["계란/두부/콩류 추가", "생선/살코기 또는 그릭요거트 추가"]),
+        ("지방", fat_pct, 20.0, 35.0, ["튀김/크림 소스 줄이기", "구이/찜 위주 선택"], ["견과류 소량 추가", "올리브유/아보카도 등 불포화지방 보충"]),
+    ]
 
     issues: list[tuple[str, float]] = []
     suggestions: list[str] = []
-
-    carb_issue = _as_issue("탄수화물", carb_pct, carb_low, carb_high)
-    if carb_issue:
-        issues.append(carb_issue)
-        if carb_pct > carb_high:
-            suggestions.extend(["밥/면 20~30% 줄이기", "단백질 반찬 1가지 추가", "비전분 채소 함께 섭취"])
-        else:
-            suggestions.extend(["통곡물/잡곡밥 보충", "운동 전후 과일 1회분 추가"])
-
-    protein_issue = _as_issue("단백질", protein_pct, protein_low, protein_high)
-    if protein_issue:
-        issues.append(protein_issue)
-        if protein_pct > protein_high:
-            suggestions.extend(["가공육 줄이기", "채소/통곡물과 함께 섭취"])
-        else:
-            suggestions.extend(["계란/두부/콩류 추가", "생선/살코기 또는 그릭요거트 추가"])
-
-    fat_issue = _as_issue("지방", fat_pct, fat_low, fat_high)
-    if fat_issue:
-        issues.append(fat_issue)
-        if fat_pct > fat_high:
-            suggestions.extend(["튀김/크림 소스 줄이기", "구이/찜 위주 선택"])
-        else:
-            suggestions.extend(["견과류 소량 추가", "올리브유/아보카도 등 불포화지방 보충"])
+    for name, pct, low, high, high_suggestions, low_suggestions in nutrient_rules:
+        issue, next_suggestions = _issue_and_suggestions(name, pct, low, high, high_suggestions, low_suggestions)
+        if issue is not None:
+            issues.append(issue)
+            suggestions.extend(next_suggestions)
 
     if not issues:
         return {
