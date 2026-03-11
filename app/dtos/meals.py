@@ -41,6 +41,7 @@ class MealTodaySummaryResponse(BaseSerializerModel):
 
 
 class MealTodayResponse(BaseSerializerModel):
+    date_label: str
     rows: list[MealTodayRowResponse]
     summary: MealTodaySummaryResponse
     carb_pct: float

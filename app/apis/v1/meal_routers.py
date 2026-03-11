@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
+from fastapi.exceptions import HTTPException
 from fastapi.responses import ORJSONResponse as Response
 
 from app.core import config
@@ -47,6 +48,10 @@ async def _build_today_response(user_id: int) -> MealTodayResponse:
     now_kst = datetime.now(config.TIMEZONE)
     start = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
     end = start + timedelta(days=1)
+    date_label = start.strftime("%Y.%m.%d")
+
+    # Keep only the current day's rows so the "today" table resets at midnight.
+    await Meal.filter(user_id=user_id, created_at__lt=start).delete()
 
     meals = await Meal.filter(user_id=user_id, created_at__gte=start, created_at__lt=end).order_by("-created_at")
 
@@ -76,6 +81,7 @@ async def _build_today_response(user_id: int) -> MealTodayResponse:
         total_fat_g=round(total_fat_g, 1),
     )
     return MealTodayResponse(
+        date_label=date_label,
         rows=rows,
         summary=summary,
         carb_pct=carb_pct,
@@ -124,3 +130,17 @@ async def get_today_meals(
 ) -> Response:
     data = await _build_today_response(user.id)
     return Response(data.model_dump(), status_code=status.HTTP_200_OK)
+
+
+@meal_router.delete("/{meal_id}", status_code=status.HTTP_200_OK)
+async def delete_meal(
+    meal_id: int,
+    user: Annotated[User, Depends(get_request_user)],
+) -> Response:
+    meal = await Meal.get_or_none(id=meal_id, user_id=user.id)
+    if meal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="식단 기록을 찾을 수 없습니다.")
+
+    await meal.delete()
+    today = await _build_today_response(user.id)
+    return Response(today.model_dump(), status_code=status.HTTP_200_OK)

@@ -1,8 +1,12 @@
+from datetime import datetime, timedelta
+
 from httpx import ASGITransport, AsyncClient
 from starlette import status
 from tortoise.contrib.test import TestCase
 
+from app.core import config
 from app.main import app
+from app.models.predictions import Meal
 
 
 class TestMealTodayApi(TestCase):
@@ -46,10 +50,42 @@ class TestMealTodayApi(TestCase):
             today_response = await client.get("/api/v1/meals/today", headers=headers)
             assert today_response.status_code == status.HTTP_200_OK
             today = today_response.json()
+            assert "date_label" in today
             assert len(today["rows"]) == 1
             assert today["rows"][0]["menu_label"] == "비빔밥"
             assert "carb_pct" in today
             assert "message" in today
+
+    async def test_today_only_keeps_current_date_rows(self):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            access_token = await self._signup_and_login(client, "meal_cleanup@example.com")
+            headers = {"Authorization": f"Bearer {access_token}"}
+
+            create_response = await client.post(
+                "/api/v1/meals/from_analysis",
+                json={
+                    "menu_label": "샐러드",
+                    "kcal": 280,
+                    "carb_g": 18,
+                    "protein_g": 14,
+                    "fat_g": 12,
+                },
+                headers=headers,
+            )
+            assert create_response.status_code == status.HTTP_201_CREATED
+
+            created_id = create_response.json()["saved"]["id"]
+            yesterday = datetime.now(config.TIMEZONE).replace(hour=23, minute=30, second=0, microsecond=0) - timedelta(days=1)
+            await Meal.filter(id=created_id).update(created_at=yesterday)
+
+            today_response = await client.get("/api/v1/meals/today", headers=headers)
+            assert today_response.status_code == status.HTTP_200_OK
+            today = today_response.json()
+            assert today["rows"] == []
+            assert today["summary"]["total_kcal"] == 0
+
+            stale_count = await Meal.filter(id=created_id).count()
+            assert stale_count == 0
 
     async def test_today_unauthorized(self):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
