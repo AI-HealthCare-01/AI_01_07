@@ -13,6 +13,7 @@ from app.dtos.onboarding import (
 )
 from app.models.predictions import OnboardingSurvey
 from app.models.users import User
+from app.services.notifications import NotificationService
 
 AI_WORKER_URL = os.getenv("AI_WORKER_URL", "http://127.0.0.1:9000")
 
@@ -110,6 +111,26 @@ async def submit_onboarding(req: OnboardingSurveyRequest, user: Annotated[User, 
         message=message,
         recommended_actions=actions,
     )
+    notification_service = NotificationService()
+    await notification_service.create_notification(
+        user=user,
+        notification_type="ONBOARDING_COMPLETED",
+        level="success",
+        icon="✅",
+        title="설문이 완료되었습니다.",
+        body="개인 맞춤 위험도 분석 결과가 생성되었습니다.",
+        dedupe_key=f"onboarding_completed:{user.id}:{saved.id}",
+    )
+    if stage == RiskStage.HIGH:
+        await notification_service.create_notification(
+            user=user,
+            notification_type="RISK_HIGH_REALTIME",
+            level="danger",
+            icon="⚠️",
+            title="고위험군으로 분류되었습니다.",
+            body="병원에서 정밀 검진을 권장합니다.",
+            dedupe_key=f"risk_high_realtime:{user.id}:{saved.id}",
+        )
 
     data = OnboardingPredictionResponse(
         survey_id=saved.id,

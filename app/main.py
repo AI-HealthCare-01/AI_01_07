@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -7,10 +8,30 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
 
 from app.apis.v1 import v1_routers
+from app.core import config
 from app.db.databases import initialize_tortoise
+from app.services.notification_scheduler import NotificationScheduler
+
+scheduler = NotificationScheduler()
+
+
+@asynccontextmanager
+async def app_lifespan(_: FastAPI):
+    if config.NOTIFICATION_SCHEDULER_ENABLED:
+        await scheduler.start()
+    try:
+        yield
+    finally:
+        if config.NOTIFICATION_SCHEDULER_ENABLED:
+            await scheduler.stop()
+
 
 app = FastAPI(
-    default_response_class=ORJSONResponse, docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
+    default_response_class=ORJSONResponse,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=app_lifespan,
 )
 
 app.add_middleware(

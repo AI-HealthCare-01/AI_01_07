@@ -1,14 +1,20 @@
 import { Link, useLocation } from 'react-router-dom';
 
-function stageLabel(stage) {
-  if (stage === 'normal') return '정상군';
-  if (stage === 'borderline') return '경계군';
-  return '고위험군';
+function getRiskMeta(probability) {
+  const riskPercent = Math.round((probability || 0) * 100);
+  if (riskPercent <= 40) {
+    return { label: '정상군 (당뇨 저위험)', tone: 'green', riskPercent };
+  }
+  if (riskPercent < 70) {
+    return { label: '경계군 (당뇨 주의)', tone: 'yellow', riskPercent };
+  }
+  return { label: '고위험군 (당뇨 고위험)', tone: 'red', riskPercent };
 }
 
 export default function SurveyResultPage() {
   const location = useLocation();
   const result = location.state?.result;
+  const riskMeta = getRiskMeta(result?.risk_probability);
 
   if (!result) {
     return (
@@ -26,9 +32,9 @@ export default function SurveyResultPage() {
   return (
     <section className="auth-wrap">
       <article className="auth-card">
-        <div className="risk-banner">
-          <p>{stageLabel(result.risk_stage)}입니다</p>
-          <strong>예측 위험도 {Math.round(result.risk_probability * 100)}%</strong>
+        <div className={`risk-banner risk-${riskMeta.tone}`}>
+          <p>{riskMeta.label}입니다</p>
+          <strong>예측 위험도 {riskMeta.riskPercent}%</strong>
         </div>
         <ul className="simple-list">
           {result.recommended_actions?.map((action) => (

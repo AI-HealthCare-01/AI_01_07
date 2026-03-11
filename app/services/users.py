@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 
 from fastapi import HTTPException, status
@@ -62,7 +61,6 @@ class UserManageService:
     async def get_profile_overview(self, user: User) -> UserProfileOverviewResponse:
         today = date.today()
         start_date = today - timedelta(days=6)
-        start_dt = datetime.combine(start_date, time.min)
         end_dt = datetime.combine(today + timedelta(days=1), time.min)
 
         checks = await DailyHealthCheck.filter(user=user, record_date__gte=start_date, record_date__lte=today).order_by(
@@ -70,18 +68,23 @@ class UserManageService:
         )
         history_by_date = {c.record_date: c for c in checks}
 
-        risk_rows = await OnboardingSurvey.filter(user=user, created_at__gte=start_dt, created_at__lt=end_dt).order_by(
-            "created_at"
-        )
-        risk_by_date = defaultdict(float)
+        risk_rows = await OnboardingSurvey.filter(user=user, created_at__lt=end_dt).order_by("created_at")
+        risk_by_date = {}
+        last_known_before_window = None
         for row in risk_rows:
-            risk_by_date[row.created_at.date()] = float(row.risk_probability)
+            row_date = row.created_at.date()
+            row_risk = float(row.risk_probability)
+            if row_date < start_date:
+                last_known_before_window = row_risk
+                continue
+            risk_by_date[row_date] = row_risk
 
-        latest = await OnboardingSurvey.filter(user=user).order_by("-created_at").first()
+        latest = risk_rows[-1] if risk_rows else None
         bmi = float(latest.bmi) if latest else None
 
         history_7d = []
         risk_trend_7d = []
+        current_risk = float(last_known_before_window or 0.0)
         for i in range(7):
             d = start_date + timedelta(days=i)
             c = history_by_date.get(d)
@@ -93,7 +96,9 @@ class UserManageService:
                     exercise_minutes=int(c.exercise_minutes) if c else 0,
                 )
             )
-            risk_trend_7d.append(ProfileRiskPoint(date=d, risk_probability=float(risk_by_date.get(d, 0.0))))
+            if d in risk_by_date:
+                current_risk = float(risk_by_date[d])
+            risk_trend_7d.append(ProfileRiskPoint(date=d, risk_probability=current_risk))
 
         return UserProfileOverviewResponse(
             id=user.id,
@@ -102,6 +107,7 @@ class UserManageService:
             birthday=user.birthday,
             gender=user.gender,
             is_admin=user.is_admin,
+            onboarding_completed=latest is not None,
             bmi=bmi,
             history_7d=history_7d,
             risk_trend_7d=risk_trend_7d,
