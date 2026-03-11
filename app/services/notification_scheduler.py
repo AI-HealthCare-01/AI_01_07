@@ -1,5 +1,6 @@
 import asyncio
 import random
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 
 from app.core import config
@@ -202,34 +203,28 @@ class NotificationScheduler:
                 await self._run_for_minute(now)
             await asyncio.sleep(15)
 
+    def _minute_handlers(self) -> dict[str, Callable[[datetime], Awaitable[None]]]:
+        return {
+            "09:00": self._send_high_risk_daily,
+            "10:30": self._send_sleep_1030,
+            "12:00": self._send_water_1200,
+            "15:00": self._send_water_1500,
+            "17:30": self._send_walk_1730,
+            "18:00": self._send_challenge_1800,
+            "18:30": self._send_exercise_1830,
+            "20:30": self._send_no_late_snack_2030,
+            "21:00": self._send_walk_2100,
+            "21:30": self._send_exercise_2130,
+            "22:00": self._send_challenge_2200,
+            "22:15": self._send_no_late_snack_2215,
+            "22:30": self._send_sleep_2230,
+        }
+
     async def _run_for_minute(self, now: datetime) -> None:
         hm = now.strftime("%H:%M")
-        if hm == "09:00":
-            await self._send_high_risk_daily(now)
-        if hm == "10:30":
-            await self._send_sleep_1030(now)
-        if hm == "12:00":
-            await self._send_water_1200(now)
-        if hm == "15:00":
-            await self._send_water_1500(now)
-        if hm == "17:30":
-            await self._send_walk_1730(now)
-        if hm == "18:00":
-            await self._send_challenge_generic(now, is_final=False)
-        if hm == "18:30":
-            await self._send_exercise_1830(now)
-        if hm == "21:00":
-            await self._send_walk_2100(now)
-        if hm == "21:30":
-            await self._send_exercise_2130(now)
-        if hm == "20:30":
-            await self._send_no_late_snack_2030(now)
-        if hm == "22:00":
-            await self._send_challenge_generic(now, is_final=True)
-        if hm == "22:15":
-            await self._send_no_late_snack_2215(now)
-        if hm == "22:30":
-            await self._send_sleep_2230(now)
+        handler = self._minute_handlers().get(hm)
+        if handler is not None:
+            await handler(now)
 
     async def _active_users(self) -> list[User]:
         return await User.filter(is_active=True)
@@ -281,6 +276,12 @@ class NotificationScheduler:
                 scheduled_for=now,
                 dedupe_key=f"challenge_{slot}:{user.id}:{now.date().isoformat()}",
             )
+
+    async def _send_challenge_1800(self, now: datetime) -> None:
+        await self._send_challenge_generic(now, is_final=False)
+
+    async def _send_challenge_2200(self, now: datetime) -> None:
+        await self._send_challenge_generic(now, is_final=True)
 
     async def _send_water_1200(self, now: datetime) -> None:
         await self._send_metric_based(

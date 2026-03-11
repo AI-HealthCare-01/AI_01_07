@@ -61,7 +61,6 @@ class UserManageService:
     async def get_profile_overview(self, user: User) -> UserProfileOverviewResponse:
         today = date.today()
         start_date = today - timedelta(days=6)
-        start_dt = datetime.combine(start_date, time.min)
         end_dt = datetime.combine(today + timedelta(days=1), time.min)
 
         checks = await DailyHealthCheck.filter(user=user, record_date__gte=start_date, record_date__lte=today).order_by(
