@@ -765,6 +765,87 @@ a {
   background: #fffaf5;
 }
 
+.food-carb-guide {
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d6e2ef;
+  background: #f5f9ff;
+}
+
+.food-carb-guide strong {
+  font-size: 13px;
+}
+
+.food-carb-guide p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.food-carb-guide.warn {
+  border-color: #f6d0cf;
+  background: #fff4f4;
+  color: #9d2e2b;
+}
+
+.food-carb-guide.info {
+  border-color: #dbe6ff;
+  background: #f4f7ff;
+  color: #2e4d93;
+}
+
+.food-carb-guide.ok {
+  border-color: #cfe9d6;
+  background: #f0faf2;
+  color: #1e6a36;
+}
+
+.food-today-summary {
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f8fbff;
+  border: 1px solid #dbe6f2;
+}
+
+.food-today-summary span {
+  display: block;
+  color: #637d93;
+  font-size: 12px;
+}
+
+.food-today-summary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.food-table-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.food-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+  font-size: 12px;
+}
+
+.food-table th,
+.food-table td {
+  border-bottom: 1px solid #e1eaf3;
+  padding: 8px 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.food-table th {
+  color: #5d768b;
+  font-weight: 700;
+}
+
 .save-btn:disabled,
 .pill-btn:disabled,
 .food-upload-trigger:disabled {
