@@ -39,6 +39,9 @@ class Meal(models.Model):
 
     label = fields.CharField(max_length=80, null=True)  # 음식명(선택)
     calories_est = fields.IntField(null=True)  # 추정 칼로리(일단 하나만)
+    carb_g = fields.FloatField(null=True)
+    protein_g = fields.FloatField(null=True)
+    fat_g = fields.FloatField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 const PASTEL_COLORS = ['#FFD6A5', '#BDE0FE', '#CDEAC0'];
@@ -15,8 +15,12 @@ export default function FoodPage() {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [reanalyzeError, setReanalyzeError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [todayData, setTodayData] = useState(null);
+  const [todayLoading, setTodayLoading] = useState(false);
+  const [todayError, setTodayError] = useState('');
+  const [recordEditMode, setRecordEditMode] = useState(false);
+  const [deletingMealId, setDeletingMealId] = useState(null);
 
   useEffect(() => {
     return () => {
@@ -32,7 +36,6 @@ export default function FoodPage() {
     setResultData(null);
     setEditing(false);
     setReanalyzeError('');
-    setSaveMessage('');
     setSaveError('');
 
     if (previewUrl) {
@@ -47,11 +50,42 @@ export default function FoodPage() {
     setPreviewUrl('');
   }
 
+  function authHeader() {
+    const token = localStorage.getItem('access_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  const loadTodayMeals = useCallback(async () => {
+    setTodayLoading(true);
+    setTodayError('');
+    try {
+      const res = await fetch('/api/v1/meals/today', {
+        headers: {
+          ...authHeader(),
+        },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        setTodayError(text || '오늘 식단 기록을 불러오지 못했습니다.');
+        return;
+      }
+      const data = await res.json();
+      setTodayData(data);
+    } catch (e) {
+      setTodayError(e instanceof Error ? e.message : '오늘 식단 기록 조회 중 오류가 발생했습니다.');
+    } finally {
+      setTodayLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTodayMeals();
+  }, [loadTodayMeals]);
+
   async function submit() {
     if (!file) return;
 
     setError('');
-    setSaveMessage('');
     setSaveError('');
     setLoading(true);
 
@@ -110,20 +144,24 @@ export default function FoodPage() {
   }
 
   async function saveFood() {
-    if (!resultData) return;
+    if (!resultData?.nutrition) return;
 
-    setSaveMessage('');
     setSaveError('');
     setSaving(true);
 
     try {
-      const res = await fetch('/api/v1/food/save', {
+      const res = await fetch('/api/v1/meals/from_analysis', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader(),
+        },
         body: JSON.stringify({
-          label: resultData.chosen.label,
-          name_ko: resultData.chosen.name_ko,
-          kcal: resultData.nutrition?.kcal ?? null,
+          menu_label: resultData.chosen.name_ko ?? resultData.chosen.label,
+          kcal: resultData.nutrition.kcal,
+          carb_g: resultData.nutrition.carb_g,
+          protein_g: resultData.nutrition.protein_g,
+          fat_g: resultData.nutrition.fat_g,
         }),
       });
 
@@ -133,11 +171,39 @@ export default function FoodPage() {
         return;
       }
 
-      setSaveMessage('오늘 식단 기록으로 저장되었습니다.');
+      const payload = await res.json();
+      setTodayData(payload.today);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : '저장 중 오류가 발생했습니다.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteMeal(mealId) {
+    setTodayError('');
+    setDeletingMealId(mealId);
+
+    try {
+      const res = await fetch(`/api/v1/meals/${mealId}`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeader(),
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        setTodayError(text || '식단 기록 삭제에 실패했습니다.');
+        return;
+      }
+
+      const nextToday = await res.json();
+      setTodayData(nextToday);
+    } catch (e) {
+      setTodayError(e instanceof Error ? e.message : '식단 기록 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingMealId(null);
     }
   }
 
@@ -192,6 +258,16 @@ export default function FoodPage() {
       return <span key={`txt-${index}`}>{part}</span>;
     });
   }
+
+  const todayTitle = todayData?.date_label ? `오늘 식단 기록 (${todayData.date_label})` : '오늘 식단 기록';
+  const summaryCards = todayData?.summary
+    ? [
+        { label: '칼로리', value: `${todayData.summary.total_kcal} kcal` },
+        { label: '탄수화물', value: `${todayData.summary.total_carb_g}g` },
+        { label: '단백질', value: `${todayData.summary.total_protein_g}g` },
+        { label: '지방', value: `${todayData.summary.total_fat_g}g` },
+      ]
+    : [];
 
   return (
     <section className="stack">
@@ -357,24 +433,108 @@ export default function FoodPage() {
               )}
             </div>
 
-            <button type="button" className="save-btn full-width" onClick={saveFood} disabled={saving}>
+            <button
+              type="button"
+              className="save-btn full-width"
+              onClick={saveFood}
+              disabled={saving || !resultData.nutrition}
+            >
               {saving ? '저장 중...' : '오늘 식단으로 저장'}
             </button>
-            {saveMessage && <div className="card">{saveMessage}</div>}
+            {!resultData.nutrition && (
+              <p className="food-subtitle">영양소 정보가 없어 저장할 수 없습니다. 메뉴 수정 후 재분석해 주세요.</p>
+            )}
             {saveError && <div className="error">{saveError}</div>}
           </article>
 
-          <article className="card">
-            <div className="card-head">
-              <strong>오늘의 식단 기록</strong>
-              <strong>{resultData.nutrition?.kcal ?? 0} kcal</strong>
-            </div>
-            <p className="food-subtitle">
-              업로드한 사진 기준으로 가장 최근 분석 결과를 보여줍니다.
-            </p>
-          </article>
         </>
       )}
+
+      <article className="card">
+        <div className="card-head">
+          <strong>{todayTitle}</strong>
+          <strong>{todayData?.summary?.total_kcal ?? 0} kcal</strong>
+        </div>
+        {todayLoading && <p className="food-subtitle">불러오는 중...</p>}
+        {todayError && <div className="error">{todayError}</div>}
+
+        {!todayLoading && todayData && (
+          <>
+            <div className={`food-carb-guide ${todayData.carb_pct > 65 ? 'warn' : todayData.carb_pct < 55 ? 'info' : 'ok'}`}>
+              <strong>탄수화물 비율 {todayData.carb_pct}%</strong>
+              <p>{todayData.message}</p>
+            </div>
+
+            <div className="food-today-summary">
+              <div className="food-today-summary-head">
+                <span>누적 합계</span>
+                <button
+                  type="button"
+                  className={`food-edit-toggle ${recordEditMode ? 'active' : ''}`}
+                  onClick={() => setRecordEditMode((prev) => !prev)}
+                >
+                  {recordEditMode ? '수정 완료' : '기록 수정'}
+                </button>
+              </div>
+              <div className="food-today-summary-grid">
+                {summaryCards.map((item) => (
+                  <div key={item.label} className="food-today-summary-card">
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="food-table-wrap">
+              <table className="food-table">
+                <thead>
+                  <tr>
+                    <th>시간</th>
+                    <th>메뉴</th>
+                    <th>kal</th>
+                    {recordEditMode && <th>관리</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {todayData.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={recordEditMode ? 4 : 3}>오늘 날짜 기준 저장된 식단이 없습니다.</td>
+                    </tr>
+                  ) : (
+                    todayData.rows.map((row) => (
+                      <tr key={row.id}>
+                        <td>
+                          {new Date(row.created_at).toLocaleTimeString('ko-KR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false,
+                            timeZone: 'Asia/Seoul',
+                          })}
+                        </td>
+                        <td>{row.menu_label ?? '-'}</td>
+                        <td>{row.kcal ?? 0}</td>
+                        {recordEditMode && (
+                          <td>
+                            <button
+                              type="button"
+                              className="food-delete-btn"
+                              onClick={() => deleteMeal(row.id)}
+                              disabled={deletingMealId === row.id}
+                            >
+                              {deletingMealId === row.id ? '삭제 중...' : '삭제'}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </article>
     </section>
   );
 }
