@@ -75,7 +75,9 @@ class TestMealTodayApi(TestCase):
             assert create_response.status_code == status.HTTP_201_CREATED
 
             created_id = create_response.json()["saved"]["id"]
-            yesterday = datetime.now(config.TIMEZONE).replace(hour=23, minute=30, second=0, microsecond=0) - timedelta(days=1)
+            yesterday = datetime.now(config.TIMEZONE).replace(hour=23, minute=30, second=0, microsecond=0) - timedelta(
+                days=1
+            )
             await Meal.filter(id=created_id).update(created_at=yesterday)
 
             today_response = await client.get("/api/v1/meals/today", headers=headers)
