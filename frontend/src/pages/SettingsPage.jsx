@@ -197,7 +197,7 @@ export default function SettingsPage() {
   };
 
   const bmi = profile?.bmi ?? 0;
-  const bmiPct = Math.min(100, Math.max(0, ((bmi - 15) / 20) * 100));
+  const bmiPct = Math.min(100, Math.max(0, ((bmi - 15) / 45) * 100));
   const isPasswordMatch = newPasswordConfirm.length > 0 && newPassword === newPasswordConfirm;
   const isPasswordMismatch = newPasswordConfirm.length > 0 && newPassword !== newPasswordConfirm;
   const toggleNotiPref = (field) => {

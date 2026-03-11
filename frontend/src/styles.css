@@ -1180,6 +1180,19 @@ a {
   padding: 16px;
 }
 
+.risk-banner.risk-green {
+  background: linear-gradient(160deg, #24a148, #13803b);
+}
+
+.risk-banner.risk-yellow {
+  background: linear-gradient(160deg, #f4c542, #d89a00);
+  color: #2f2410;
+}
+
+.risk-banner.risk-red {
+  background: linear-gradient(160deg, #ea2b2b, #bd1f32);
+}
+
 .simple-list {
   margin: 14px 0;
   padding: 0;
