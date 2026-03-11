@@ -25,6 +25,7 @@ async def app_lifespan(_: FastAPI):
         if config.NOTIFICATION_SCHEDULER_ENABLED:
             await scheduler.stop()
 
+
 app = FastAPI(
     default_response_class=ORJSONResponse,
     docs_url="/api/docs",

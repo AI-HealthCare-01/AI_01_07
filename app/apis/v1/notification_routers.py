@@ -25,7 +25,9 @@ async def list_notifications(
     return Response(payload.model_dump(), status_code=status.HTTP_200_OK)
 
 
-@notification_router.patch("/{notification_id}/read", response_model=NotificationReadResponse, status_code=status.HTTP_200_OK)
+@notification_router.patch(
+    "/{notification_id}/read", response_model=NotificationReadResponse, status_code=status.HTTP_200_OK
+)
 async def mark_notification_read(
     notification_id: int,
     user: Annotated[User, Depends(get_request_user)],
