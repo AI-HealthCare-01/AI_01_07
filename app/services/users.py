@@ -12,6 +12,7 @@ from app.dtos.users import (
     UserProfileOverviewResponse,
     UserUpdateRequest,
 )
+from app.models.challenges import ChallengeDaily
 from app.models.checkin import DailyHealthCheck
 from app.models.predictions import DiabetesPrediction, Meal, OnboardingSurvey
 from app.models.users import User
@@ -63,10 +64,8 @@ class UserManageService:
         start_date = today - timedelta(days=6)
         end_dt = datetime.combine(today + timedelta(days=1), time.min)
 
-        checks = await DailyHealthCheck.filter(user=user, record_date__gte=start_date, record_date__lte=today).order_by(
-            "record_date"
-        )
-        history_by_date = {c.record_date: c for c in checks}
+        checks = await ChallengeDaily.filter(user=user, date__gte=start_date, date__lte=today).order_by("date")
+        history_by_date = {c.date: c for c in checks}
 
         risk_rows = await OnboardingSurvey.filter(user=user, created_at__lt=end_dt).order_by("created_at")
         risk_by_date = {}
@@ -93,7 +92,7 @@ class UserManageService:
             history_7d.append(
                 ProfileHistoryPoint(
                     date=d,
-                    water_ml=int(c.water_ml) if c else 0,
+                    water_ml=int(c.water_cups * 200) if c else 0,
                     steps=int(c.steps) if c else 0,
                     exercise_minutes=int(c.exercise_minutes) if c else 0,
                 )

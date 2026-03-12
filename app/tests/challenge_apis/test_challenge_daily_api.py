@@ -53,7 +53,7 @@ class TestChallengeDailyApi(TestCase):
             assert today["row"]["steps"] == 8500
             assert today["summary"]["message"]
 
-    async def test_daily_inputs_accumulate_and_morning_fields_lock(self):
+    async def test_daily_inputs_accumulate_and_morning_fields_can_be_updated(self):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             access_token = await self._signup_and_login(client, "challenge_accumulate@example.com")
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -87,8 +87,8 @@ class TestChallengeDailyApi(TestCase):
             assert payload["row"]["steps"] == 5500
             assert payload["row"]["exercise_minutes"] == 35
             assert payload["row"]["water_cups"] == 5
-            assert payload["row"]["sleep_hours"] == 7.0
-            assert payload["row"]["no_snack"] is True
+            assert payload["row"]["sleep_hours"] == 5.0
+            assert payload["row"]["no_snack"] is False
 
     async def test_trend_returns_requested_days(self):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
