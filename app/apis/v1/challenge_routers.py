@@ -46,7 +46,9 @@ def _compute_daily_score(payload: ChallengeDailyUpsertRequest) -> float:
     return _round_score(daily_score)
 
 
-def _merge_daily_values(existing: ChallengeDaily | None, req: ChallengeDailyUpsertRequest) -> ChallengeDailyUpsertRequest:
+def _merge_daily_values(
+    existing: ChallengeDaily | None, req: ChallengeDailyUpsertRequest
+) -> ChallengeDailyUpsertRequest:
     if existing is None:
         return req
 

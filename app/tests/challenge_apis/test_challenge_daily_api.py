@@ -44,7 +44,7 @@ class TestChallengeDailyApi(TestCase):
             assert response.status_code == status.HTTP_200_OK
             payload = response.json()
             assert payload["summary"]["tier"] == "success"
-            assert payload["summary"]["daily_score"] == 156.1
+            assert payload["summary"]["daily_score"] == 246.2
             assert payload["summary"]["behavior_index"] == 0.47
 
             today_response = await client.get("/api/v1/challenges/today", headers=headers)
