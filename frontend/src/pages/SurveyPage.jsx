@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { onboardingApi } from '../api/onboardingApi.js';
 import { getCurrentUserEmail, hasCompletedOnboarding, syncOnboardingCompleted } from '../utils/onboardingGate.js';
 
 export default function SurveyPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({
     age: 30,
     gender: 'male',
@@ -26,14 +28,48 @@ export default function SurveyPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const bmi = useMemo(() => {
+    const h = Number(form.height_cm || 0) / 100;
+    const w = Number(form.weight_kg || 0);
+    if (!h || !w) return 0;
+    return w / (h * h + 1e-9);
+  }, [form.height_cm, form.weight_kg]);
+
+  const bmiStatus = useMemo(() => {
+    if (!bmi) {
+      return { label: 'BMI를 계산할 수 없습니다.', tone: '' };
+    }
+
+    const isMale = form.gender === 'male';
+    const normalMin = isMale ? 20 : 18.5;
+    const obesityMin = isMale ? 25 : 24;
+    const genderLabel = isMale ? '남성' : '여성';
+
+    if (bmi >= obesityMin) {
+      return { label: `${genderLabel} BMI 기준: 비만 (${bmi.toFixed(1)})`, tone: 'orange' };
+    }
+    if (bmi >= normalMin) {
+      return { label: `${genderLabel} BMI 기준: 정상 (${bmi.toFixed(1)})`, tone: 'green' };
+    }
+    return { label: `${genderLabel} BMI 기준: 저체중 (${bmi.toFixed(1)})`, tone: '' };
+  }, [bmi, form.gender]);
+
   const onSubmit = (e) => {
     e.preventDefault();
     navigate('/survey/loading', { state: { form } });
   };
 
   useEffect(() => {
+    const prefillWeight = Number(location.state?.prefillWeightKg);
+    if (Number.isFinite(prefillWeight) && prefillWeight > 20 && prefillWeight <= 300) {
+      setForm((prev) => ({ ...prev, weight_kg: prefillWeight }));
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    const isEditMode = searchParams.get('mode') === 'edit';
     const email = getCurrentUserEmail();
-    if (hasCompletedOnboarding(email)) {
+    if (hasCompletedOnboarding(email) && !isEditMode) {
       navigate('/home', { replace: true });
       return;
     }
@@ -41,7 +77,7 @@ export default function SurveyPage() {
     onboardingApi
       .hasCompleted()
       .then((completed) => {
-        if (completed) {
+        if (completed && !isEditMode) {
           if (email) {
             syncOnboardingCompleted(email);
           }
@@ -51,7 +87,7 @@ export default function SurveyPage() {
       .catch(() => {
         // Ignore network errors and keep survey accessible.
       });
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   return (
     <section className="auth-wrap">
@@ -78,6 +114,7 @@ export default function SurveyPage() {
             몸무게(kg)
             <input type="number" value={form.weight_kg} onChange={onChange('weight_kg')} />
           </label>
+          <p className={`status ${bmiStatus.tone}`}>{bmiStatus.label}</p>
           <label>
             가족력
             <select value={form.family_history} onChange={onChange('family_history')}>
