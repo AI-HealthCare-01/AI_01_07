@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CartesianGrid,
@@ -37,40 +37,76 @@ function toIsoDate(date) {
   return `${year}-${month}-${day}`;
 }
 
-function getHealthStatusLabel(healthScore) {
-  if (healthScore >= 0.67) return '양호';
-  if (healthScore >= 0.34) return '보통';
-  return '주의';
+function clamp(value, low, high) {
+  return Math.max(low, Math.min(value, high));
 }
 
 function isMissingRecord(point) {
   return point?.daily_score == null || (Number(point?.daily_score) === 0 && Number(point?.behavior_index) === 0.5);
 }
 
-function ChallengeTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
+function getHeroMessage(points) {
+  const completedPoints = points.filter((point) => Number(point?.daily_score || 0) > 0);
+  const todayPoint = points[points.length - 1];
 
-  const point = payload[0]?.payload;
+  if (completedPoints.length === 0) {
+    return '오늘의 챌린지 화이팅! 작은 기록 하나가 이번 주 흐름을 바꿔요.';
+  }
+  if (todayPoint?.tier === 'success') {
+    return '좋은 흐름입니다. 오늘의 실천이 건강 관리 리듬으로 이어지고 있어요.';
+  }
+  if (todayPoint?.tier === 'needs_attention') {
+    return '다시 도전하는 당신 아름다워! 오늘 기록 하나로 분위기를 바꿀 수 있어요.';
+  }
+  return '오늘도 차분하게 건강 관리를 이어가봐요.';
+}
+
+function getRiskStageLabel(riskProbability) {
+  if (riskProbability >= 0.7) return '위험';
+  if (riskProbability >= 0.4) return '주의';
+  return '정상';
+}
+
+function getRiskStageColor(stageLabel) {
+  if (stageLabel === '위험') {
+    return { fill: '#df5b57', stroke: '#f9d9d7' };
+  }
+  if (stageLabel === '주의') {
+    return { fill: '#e4bf4a', stroke: '#f8efd0' };
+  }
+  return { fill: '#16934a', stroke: '#dff6e7' };
+}
+
+function getScoreTone(score) {
+  if (score >= 80) return 'good';
+  if (score >= 50) return 'steady';
+  return 'care';
+}
+
+function RiskTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const point = payload.find((item) => item?.payload)?.payload;
   if (!point) return null;
 
   return (
     <div className="home-graph-tooltip">
       <span className="home-graph-tooltip-date">{toShortDate(label)}</span>
-      <strong>상태: {point.hasRecord ? point.statusLabel : '기록 없음'}</strong>
-      <p>오늘 변화: {point.hasRecord ? `${point.deltaLabel}` : '-'}</p>
+      <strong>상태: {point.riskStageLabel}</strong>
+      <p>위험도: {point.riskPercent}%</p>
     </div>
   );
 }
 
-function ChallengeDot(props) {
+function RiskDot(props) {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null) return null;
 
-  if (!payload?.hasRecord) {
+  if (!payload?.hasBehaviorRecord) {
     return <circle cx={cx} cy={cy} r={4} fill="#ffffff" stroke="#c4cdd7" strokeWidth={2} />;
   }
 
-  return <circle cx={cx} cy={cy} r={4} fill="#168a42" stroke="#dff6e7" strokeWidth={2} />;
+  const colors = getRiskStageColor(payload.riskStageLabel);
+  return <circle cx={cx} cy={cy} r={4} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />;
 }
 
 function formatTodayLabel() {
@@ -83,92 +119,13 @@ function formatTodayLabel() {
   });
 }
 
-function pickByDay(messages) {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const diff = now - start;
-  const dayOfYear = Math.floor(diff / 86400000);
-  return messages[dayOfYear % messages.length];
-}
-
-function getSuccessStreak(points) {
-  let streak = 0;
-  for (let i = points.length - 1; i >= 0; i -= 1) {
-    const point = points[i];
-    if (point?.tier === 'success' && Number(point?.daily_score || 0) > 0) {
-      streak += 1;
-      continue;
-    }
-    break;
-  }
-  return streak;
-}
-
-function getHeroMessage(points) {
-  const completedPoints = points.filter((point) => Number(point?.daily_score || 0) > 0);
-  const todayPoint = points[points.length - 1];
-  const successStreak = getSuccessStreak(points);
-
-  if (completedPoints.length === 0) {
-    return pickByDay([
-      '오늘의 챌린지 화이팅!',
-      '첫 기록이 좋은 흐름의 시작이에요.',
-      '오늘 한 번의 체크인이 이번 주 그래프를 바꿔요.',
-      '가볍게 시작해도 충분해요. 오늘 기록 남겨볼까요?',
-      '작은 실천 하나가 좋은 리듬을 만듭니다.',
-      '오늘의 건강 관리, 천천히 시작해봐요.',
-    ]);
-  }
-
-  if (todayPoint?.tier === 'success' && successStreak >= 2) {
-    return pickByDay([
-      '이대로만 가보자고!',
-      '연속 성공, 지금 흐름 아주 좋아요.',
-      '좋은 리듬입니다. 오늘도 안정적으로 가고 있어요.',
-      '꾸준함이 쌓이고 있어요. 지금 페이스 좋습니다.',
-      '이번 주 흐름이 단단해지고 있어요.',
-      '잘 하고 있어요. 오늘도 이어가봅시다.',
-    ]);
-  }
-
-  if (todayPoint?.tier === 'success') {
-    return pickByDay([
-      '오늘도 좋은 흐름으로 가고 있어요.',
-      '좋은 기록이에요. 이 페이스를 이어가봐요.',
-      '오늘의 실천이 차곡차곡 쌓이고 있어요.',
-      '하나씩 해내는 중이에요. 지금처럼만 가요.',
-      '지금의 리듬, 꽤 좋습니다.',
-      '오늘도 잘 해냈어요. 내일도 가볍게 이어가요.',
-    ]);
-  }
-
-  if (todayPoint?.tier === 'needs_attention') {
-    return pickByDay([
-      '다시 도전하는 당신 아름다워!',
-      '오늘이 다시 흐름을 만드는 출발점이에요.',
-      '한 번 쉬어가도 괜찮아요. 다시 시작하면 됩니다.',
-      '가볍게 한 가지부터 다시 해봐요.',
-      '오늘 기록 하나로 분위기를 바꿀 수 있어요.',
-      '지금부터 다시 쌓아도 늦지 않았어요.',
-    ]);
-  }
-
-  return pickByDay([
-    '오늘도 차분하게 건강 관리를 이어가봐요.',
-    '이번 주 리듬을 천천히 만들어가고 있어요.',
-    '하루 한 번의 기록이 좋은 기준이 됩니다.',
-    '오늘의 챌린지를 가볍게 이어가봐요.',
-    '작은 실천이 모이면 좋은 흐름이 됩니다.',
-    '오늘도 나를 위한 기록을 남겨봐요.',
-  ]);
-}
-
 export default function HomePage() {
   const [trendData, setTrendData] = useState([]);
   const [displayName, setDisplayName] = useState('사용자');
   const [activeChallenge, setActiveChallenge] = useState(null);
   const [todayRow, setTodayRow] = useState(null);
   const [targetOverrides, setTargetOverrides] = useState({});
+  const [profileOverview, setProfileOverview] = useState(null);
 
   useEffect(() => {
     getChallengeTrend(7)
@@ -181,38 +138,58 @@ export default function HomePage() {
 
     apiClient
       .get('/v1/users/me/profile-overview')
-      .then((res) => setDisplayName(res.data?.name || '사용자'))
-      .catch(() => setDisplayName('사용자'));
+      .then((res) => {
+        setDisplayName(res.data?.name || '사용자');
+        setProfileOverview(res.data || null);
+      })
+      .catch(() => {
+        setDisplayName('사용자');
+        setProfileOverview(null);
+      });
 
     setActiveChallenge(loadActiveChallenge());
     setTargetOverrides(loadChallengeTargetOverrides());
   }, []);
 
-  const weekGraphData = (() => {
+  const weeklyRiskData = useMemo(() => {
     const start = getWeekStart();
-    const pointMap = new Map(trendData.map((point) => [point.date, point]));
+    const challengeMap = new Map(trendData.map((point) => [point.date, point]));
+    const surveyPoints = profileOverview?.risk_trend_7d ?? [];
+    const surveyMap = new Map(surveyPoints.map((point) => [point.date, Number(point.risk_probability ?? 0.5)]));
+    const latestSurveyRisk =
+      surveyPoints.length > 0 ? Number(surveyPoints[surveyPoints.length - 1]?.risk_probability ?? 0.5) : 0.5;
 
     return Array.from({ length: 7 }, (_, index) => {
       const current = new Date(start);
       current.setDate(start.getDate() + index);
       const isoDate = toIsoDate(current);
-      const point = pointMap.get(isoDate) || { date: isoDate, behavior_index: 0.5, daily_score: null };
-      const hasRecord = !isMissingRecord(point);
-      const behaviorIndex = Number(point?.behavior_index ?? 0.5);
-      const healthScore = 1 - behaviorIndex;
-      const deltaValue = Number(point?.delta ?? 0);
+      const challengePoint = challengeMap.get(isoDate) ?? null;
+      const baseRisk = Number(surveyMap.get(isoDate) ?? latestSurveyRisk);
+      const behaviorIndex = Number(challengePoint?.behavior_index ?? 0.5);
+      const hasBehaviorRecord = !isMissingRecord(challengePoint);
+
+      const goodEffect = Math.max(0, 0.5 - behaviorIndex);
+      const careEffect = Math.max(0, behaviorIndex - 0.5);
+      const adjustedRisk = hasBehaviorRecord
+        ? clamp(baseRisk - goodEffect * 1.1 + careEffect * 0.45, 0, 1)
+        : clamp(baseRisk, 0, 1);
 
       return {
-        ...point,
         date: isoDate,
-        hasRecord,
-        health_score: healthScore,
-        statusLabel: getHealthStatusLabel(healthScore),
-        daily_score: point?.daily_score == null ? null : Number(point.daily_score),
-        deltaLabel: deltaValue > 0 ? `+${deltaValue.toFixed(3)}` : deltaValue.toFixed(3),
+        risk_probability: adjustedRisk,
+        riskPercent: Math.round(adjustedRisk * 100),
+        riskStageLabel: getRiskStageLabel(adjustedRisk),
+        hasBehaviorRecord,
       };
     });
-  })();
+  }, [profileOverview, trendData]);
+
+  const todayHealthScore = useMemo(() => {
+    const todayBehaviorIndex = Number(todayRow?.behavior_index ?? 0.5);
+    return clamp(Math.round((1 - todayBehaviorIndex) * 100), 0, 100);
+  }, [todayRow]);
+
+  const scoreTone = getScoreTone(todayHealthScore);
 
   const activeChallengeProgress = (() => {
     if (!activeChallenge || !todayRow) return activeChallenge;
@@ -229,6 +206,9 @@ export default function HomePage() {
     return { ...activeChallenge, current, target, progress };
   })();
 
+  const hasSurvey = Boolean(profileOverview?.onboarding_completed);
+  const hasRiskRecords = weeklyRiskData.some((point) => point.hasBehaviorRecord);
+
   return (
     <section className="stack">
       <article className="hero-card">
@@ -241,22 +221,50 @@ export default function HomePage() {
         <div className="card-head">
           <div>
             <span className="home-summary-badge">이번 주 요약</span>
-            <h3>나의 건강 그래프</h3>
+            <h3>당뇨 발병률 예측</h3>
           </div>
           <Link to="/checkin" className="pill-btn">
             기록하기
           </Link>
         </div>
-        {!weekGraphData.some((point) => point.hasRecord) && (
+        {!hasSurvey && (
           <p className="home-empty-guide">
-            이번 주 기록이 아직 부족해요. 체크인에서 오늘 기록을 남기면 그래프가 바뀌어요.
+            설문 기반 위험도 정보가 아직 없어요. 설문을 먼저 완료하면 변화 그래프를 볼 수 있어요.
           </p>
         )}
+        {hasSurvey && !hasRiskRecords && (
+          <p className="home-empty-guide">
+            이번 주 기록이 아직 부족해요. 체크인에서 오늘 기록을 남기면 위험도 변화가 더 또렷하게 보여요.
+          </p>
+        )}
+
+        <div className="home-risk-legend" aria-label="risk-level-legend">
+          <span className="home-risk-legend-item normal">
+            <i />
+            정상
+          </span>
+          <span className="home-risk-legend-item caution">
+            <i />
+            주의
+          </span>
+          <span className="home-risk-legend-item danger">
+            <i />
+            위험
+          </span>
+        </div>
 
         <div className="challenge-trend-card">
           <div className="challenge-trend-wrap">
             <ResponsiveContainer>
-              <LineChart data={weekGraphData}>
+              <LineChart data={weeklyRiskData}>
+                <defs>
+                  <linearGradient id="riskLineGradient" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor="#27a85f" />
+                    <stop offset="40%" stopColor="#27a85f" />
+                    <stop offset="70%" stopColor="#d8b33d" />
+                    <stop offset="100%" stopColor="#df5b57" />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid stroke="#e4edf5" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
@@ -267,27 +275,49 @@ export default function HomePage() {
                 />
                 <YAxis
                   domain={[0, 1]}
-                  ticks={[0, 0.5, 1]}
+                  ticks={[0, 0.4, 0.7, 1]}
                   tickFormatter={(value) => {
-                    if (value === 1) return '양호';
-                    if (value === 0.5) return '보통';
-                    return '주의';
+                    if (value === 1) return '100';
+                    if (value === 0.7) return '70';
+                    if (value === 0.4) return '40';
+                    return '0';
                   }}
                   tick={{ fontSize: 11 }}
                 />
-                <Tooltip content={<ChallengeTooltip />} />
+                <Tooltip content={<RiskTooltip />} />
                 <Line
                   type="monotone"
-                  dataKey="health_score"
-                  stroke="#8fd9a7"
+                  dataKey="risk_probability"
+                  stroke="url(#riskLineGradient)"
                   strokeWidth={3}
-                  dot={<ChallengeDot />}
-                  activeDot={{ r: 5, fill: '#168a42', stroke: '#dff6e7', strokeWidth: 2 }}
+                  dot={<RiskDot />}
+                  activeDot={<RiskDot />}
                   connectNulls
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      </article>
+
+      <article className={`card home-score-card ${scoreTone}`}>
+        <div className="card-head">
+          <div>
+            <span className="home-summary-badge">오늘 요약</span>
+            <h3>나의 건강 점수</h3>
+          </div>
+          <Link to="/checkin" className="pill-btn">
+            기록하기
+          </Link>
+        </div>
+        <div className="home-score-row">
+          <div className="home-score-value">
+            <strong>{todayHealthScore}</strong>
+            <span>/100</span>
+          </div>
+          <p className="home-score-copy">
+            오늘의 체크인과 챌린지 흐름을 바탕으로 계산되는 점수예요. 점수가 높을수록 좋은 생활 리듬에 가까워요.
+          </p>
         </div>
       </article>
 

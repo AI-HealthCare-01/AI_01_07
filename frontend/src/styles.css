@@ -904,6 +904,60 @@ a {
   gap: 12px;
 }
 
+.home-score-card {
+  display: grid;
+  gap: 14px;
+}
+
+.home-score-card.good {
+  border-color: #cfe9d6;
+  background: linear-gradient(180deg, #ffffff, #f4fbf6);
+}
+
+.home-score-card.steady {
+  border-color: #e2e8c5;
+  background: linear-gradient(180deg, #ffffff, #fbfcf3);
+}
+
+.home-score-card.care {
+  border-color: #f0ddd0;
+  background: linear-gradient(180deg, #ffffff, #fff8f3);
+}
+
+.home-score-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: end;
+}
+
+.home-score-value {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  line-height: 1;
+}
+
+.home-score-value strong {
+  font-size: 42px;
+  font-weight: 900;
+  color: #173042;
+}
+
+.home-score-value span {
+  padding-bottom: 5px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #678094;
+}
+
+.home-score-copy {
+  margin: 0;
+  color: #4c667a;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .home-graph-card h3 {
   margin: 6px 0 0;
 }
@@ -928,6 +982,41 @@ a {
   color: #526a7f;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.home-risk-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.home-risk-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #50677b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.home-risk-legend-item i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.home-risk-legend-item.normal i {
+  background: #27a85f;
+}
+
+.home-risk-legend-item.caution i {
+  background: #d8b33d;
+}
+
+.home-risk-legend-item.danger i {
+  background: #df5b57;
 }
 
 .home-graph-tooltip {
