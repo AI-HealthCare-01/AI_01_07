@@ -1002,6 +1002,39 @@ a {
   line-height: 1.6;
 }
 
+.home-daily-summary-card {
+  display: grid;
+  gap: 12px;
+}
+
+.home-daily-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.home-daily-summary-item {
+  min-width: 0;
+  border-radius: 16px;
+  padding: 12px 10px;
+  border: 1px solid #dbe6f1;
+  background: linear-gradient(180deg, #f9fbff, #f4f8fc);
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.home-daily-summary-item span {
+  color: #6d8397;
+  font-size: 11px;
+}
+
+.home-daily-summary-item strong {
+  color: #183042;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
 .home-graph-card h3 {
   margin: 6px 0 0;
 }

@@ -193,6 +193,11 @@ export default function HomePage() {
   }, [todayRow]);
 
   const scoreTone = getScoreTone(todayHealthScore);
+  const todaySummaryItems = [
+    { label: '물 섭취량', value: `${Number(todayRow?.water_cups ?? 0)}컵` },
+    { label: '걸음 수', value: `${Number(todayRow?.steps ?? 0).toLocaleString()}걸음` },
+    { label: '운동 시간', value: `${Number(todayRow?.exercise_minutes ?? 0)}분` },
+  ];
 
   const activeChallengeProgress = (() => {
     if (!activeChallenge || !todayRow) return activeChallenge;
@@ -334,6 +339,23 @@ export default function HomePage() {
           <p className="home-score-copy">
             오늘의 체크인과 챌린지 흐름을 바탕으로 계산되는 점수예요. 점수가 높을수록 좋은 생활 리듬에 가까워요.
           </p>
+        </div>
+      </article>
+
+      <article className="card home-daily-summary-card">
+        <div className="card-head">
+          <div>
+            <span className="home-summary-badge">오늘 누적</span>
+            <h3>체크인 기록</h3>
+          </div>
+        </div>
+        <div className="home-daily-summary-grid">
+          {todaySummaryItems.map((item) => (
+            <div key={item.label} className="home-daily-summary-item">
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
         </div>
       </article>
 

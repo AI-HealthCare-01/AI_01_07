@@ -4,9 +4,9 @@ import { apiClient } from '../api/client.js';
 import { clearCurrentUserEmail, getCurrentUserEmail } from '../utils/onboardingGate.js';
 
 const METRIC_META = {
-  water_ml: { label: '수분섭취', max: 5000, unit: 'ml' },
-  steps: { label: '걸음수', max: 30000, unit: '걸음' },
-  exercise_minutes: { label: '운동시간', max: 180, unit: '분' },
+  water_ml: { label: '수분섭취', max: 5000, unit: 'ml', lineColor: '#2f9dff' },
+  steps: { label: '걸음수', max: 30000, unit: '걸음', lineColor: '#2ca867' },
+  exercise_minutes: { label: '운동시간', max: 180, unit: '분', lineColor: '#f29f3f' },
 };
 const NOTI_PREF_KEY = 'notification_preferences';
 const DEFAULT_NOTI_PREFS = {
@@ -376,7 +376,7 @@ export default function SettingsPage() {
         </article>
 
         <article className="card">
-        <h3>기록 히스토리 (7일)</h3>
+        <h3>기록 히스토리</h3>
         {Object.entries(METRIC_META).map(([key, meta]) => (
           <div key={key} className="metric-group">
             <p className="muted">{meta.label}</p>
@@ -384,7 +384,7 @@ export default function SettingsPage() {
               data={profile?.history_7d || []}
               getValue={(p) => p[key]}
               maxValue={meta.max}
-              lineColor="#2f9dff"
+              lineColor={meta.lineColor}
               formatTitle={(v) => `${v} ${meta.unit}`}
             />
           </div>

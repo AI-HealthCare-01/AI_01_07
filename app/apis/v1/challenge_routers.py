@@ -52,13 +52,12 @@ def _merge_daily_values(
     if existing is None:
         return req
 
-    morning_locked = float(existing.sleep_hours or 0) > 0
     return ChallengeDailyUpsertRequest(
         steps=existing.steps + req.steps,
         exercise_minutes=existing.exercise_minutes + req.exercise_minutes,
         water_cups=existing.water_cups + req.water_cups,
-        sleep_hours=float(existing.sleep_hours) if morning_locked else req.sleep_hours,
-        no_snack=existing.no_snack if morning_locked else req.no_snack,
+        sleep_hours=req.sleep_hours,
+        no_snack=req.no_snack,
     )
 
 
