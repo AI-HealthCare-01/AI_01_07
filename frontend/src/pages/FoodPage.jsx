@@ -18,7 +18,6 @@ export default function FoodPage() {
   const [saveError, setSaveError] = useState('');
   const [todayData, setTodayData] = useState(null);
   const [todayLoading, setTodayLoading] = useState(false);
-  const [todayError, setTodayError] = useState('');
   const [recordEditMode, setRecordEditMode] = useState(false);
   const [deletingMealId, setDeletingMealId] = useState(null);
 
@@ -57,7 +56,6 @@ export default function FoodPage() {
 
   const loadTodayMeals = useCallback(async () => {
     setTodayLoading(true);
-    setTodayError('');
     try {
       const res = await fetch('/api/v1/meals/today', {
         headers: {
@@ -66,13 +64,13 @@ export default function FoodPage() {
       });
       if (!res.ok) {
         const text = await res.text();
-        setTodayError(text || '오늘 식단 기록을 불러오지 못했습니다.');
+        window.alert(text || '오늘 식단 기록을 불러오지 못했습니다.');
         return;
       }
       const data = await res.json();
       setTodayData(data);
     } catch (e) {
-      setTodayError(e instanceof Error ? e.message : '오늘 식단 기록 조회 중 오류가 발생했습니다.');
+      window.alert(e instanceof Error ? e.message : '오늘 식단 기록 조회 중 오류가 발생했습니다.');
     } finally {
       setTodayLoading(false);
     }
@@ -181,7 +179,6 @@ export default function FoodPage() {
   }
 
   async function deleteMeal(mealId) {
-    setTodayError('');
     setDeletingMealId(mealId);
 
     try {
@@ -194,14 +191,14 @@ export default function FoodPage() {
 
       if (!res.ok) {
         const text = await res.text();
-        setTodayError(text || '식단 기록 삭제에 실패했습니다.');
+        window.alert(text || '식단 기록 삭제에 실패했습니다.');
         return;
       }
 
       const nextToday = await res.json();
       setTodayData(nextToday);
     } catch (e) {
-      setTodayError(e instanceof Error ? e.message : '식단 기록 삭제 중 오류가 발생했습니다.');
+      window.alert(e instanceof Error ? e.message : '식단 기록 삭제 중 오류가 발생했습니다.');
     } finally {
       setDeletingMealId(null);
     }
@@ -456,7 +453,6 @@ export default function FoodPage() {
           <strong>{todayData?.summary?.total_kcal ?? 0} kcal</strong>
         </div>
         {todayLoading && <p className="food-subtitle">불러오는 중...</p>}
-        {todayError && <div className="error">{todayError}</div>}
 
         {!todayLoading && todayData && (
           <>

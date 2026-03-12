@@ -72,6 +72,8 @@ class UserProfileOverviewResponse(BaseSerializerModel):
     is_admin: bool
     onboarding_completed: bool
     bmi: float | None
+    latest_height_cm: float | None
+    latest_weight_kg: float | None
     history_7d: list[ProfileHistoryPoint]
     risk_trend_7d: list[ProfileRiskPoint]
 

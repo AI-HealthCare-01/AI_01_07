@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
-import { clearCurrentUserEmail } from '../utils/onboardingGate.js';
+import { clearCurrentUserEmail, getCurrentUserEmail } from '../utils/onboardingGate.js';
 
 const METRIC_META = {
   water_ml: { label: '수분섭취', max: 5000, unit: 'ml' },
@@ -14,6 +14,7 @@ const DEFAULT_NOTI_PREFS = {
   checkin_reminder: true,
   weekly_summary: true,
 };
+const WEIGHT_OVERRIDE_PREFIX = 'profile_weight_override:';
 
 function toShortDate(dateText) {
   return dateText?.slice(5) || '';
@@ -91,9 +92,14 @@ export default function SettingsPage() {
   const [isOldPasswordVerified, setIsOldPasswordVerified] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [newNickname, setNewNickname] = useState('');
+  const [editTarget, setEditTarget] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
+  const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
+  const [weightInput, setWeightInput] = useState('');
+  const [weightOverride, setWeightOverride] = useState(null);
   const [notiPrefs, setNotiPrefs] = useState(() => {
     try {
       return { ...DEFAULT_NOTI_PREFS, ...(JSON.parse(localStorage.getItem(NOTI_PREF_KEY) || '{}')) };
@@ -109,6 +115,20 @@ export default function SettingsPage() {
       .catch((err) => setError(err?.response?.data?.detail || '프로필 정보를 불러오지 못했습니다.'));
   }, []);
 
+  useEffect(() => {
+    const email = profile?.email || getCurrentUserEmail();
+    if (!email) {
+      setWeightOverride(null);
+      return;
+    }
+    const stored = Number(localStorage.getItem(`${WEIGHT_OVERRIDE_PREFIX}${email.toLowerCase()}`));
+    if (Number.isFinite(stored) && stored > 20 && stored <= 300) {
+      setWeightOverride(stored);
+      return;
+    }
+    setWeightOverride(null);
+  }, [profile?.email]);
+
   const onLogout = () => {
     const confirmed = window.confirm('로그아웃하시겠습니까?');
     if (!confirmed) return;
@@ -123,6 +143,8 @@ export default function SettingsPage() {
     setIsOldPasswordVerified(false);
     setNewPassword('');
     setNewPasswordConfirm('');
+    setNewNickname(profile?.name || '');
+    setEditTarget('');
     setPwError('');
     setPwSuccess('');
   };
@@ -178,6 +200,39 @@ export default function SettingsPage() {
     }
   };
 
+  const onSubmitNicknameChange = async () => {
+    if (!isOldPasswordVerified) return;
+    const trimmed = (newNickname || '').trim();
+    if (trimmed.length < 2) {
+      setPwError('닉네임은 2자 이상 입력하세요.');
+      return;
+    }
+    if (trimmed.length > 20) {
+      setPwError('닉네임은 20자 이하로 입력하세요.');
+      return;
+    }
+    if (trimmed === (profile?.name || '')) {
+      setPwError('기존 닉네임과 동일합니다.');
+      return;
+    }
+
+    setPwError('');
+    setPwSuccess('');
+    setPwLoading(true);
+    try {
+      const response = await apiClient.patch('/v1/users/me', { name: trimmed });
+      setProfile((prev) => ({ ...prev, ...(response.data || {}), name: trimmed }));
+      setPwSuccess('닉네임이 변경되었습니다.');
+      setTimeout(() => {
+        closePasswordModal();
+      }, 500);
+    } catch (err) {
+      setPwError(err?.response?.data?.detail || '닉네임 변경 실패');
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
   const onWithdraw = async () => {
     const confirmed = window.confirm('회원탈퇴 시 모든 정보가 삭제됩니다. 계속하시겠습니까?');
     if (!confirmed) return;
@@ -196,14 +251,46 @@ export default function SettingsPage() {
     }
   };
 
-  const bmi = profile?.bmi ?? 0;
+  const latestHeightCm = Number(profile?.latest_height_cm || 0);
+  const effectiveWeightKg = weightOverride ?? Number(profile?.latest_weight_kg || 0);
+  const calculatedBmi = latestHeightCm > 0 && effectiveWeightKg > 0
+    ? effectiveWeightKg / (((latestHeightCm / 100) ** 2) + 1e-9)
+    : null;
+  const bmi = calculatedBmi ?? (profile?.bmi ?? 0);
   const bmiPct = Math.min(100, Math.max(0, ((bmi - 15) / 45) * 100));
+  const bmiStatus = !profile?.bmi
+    ? { label: 'BMI 정보가 없습니다.', tone: '' }
+    : bmi >= 25
+      ? { label: '비만', tone: 'orange' }
+      : bmi >= 23
+        ? { label: '경계', tone: 'yellow' }
+        : bmi >= 18.5
+          ? { label: '정상', tone: 'green' }
+          : { label: '저체중', tone: '' };
   const isPasswordMatch = newPasswordConfirm.length > 0 && newPassword === newPasswordConfirm;
   const isPasswordMismatch = newPasswordConfirm.length > 0 && newPassword !== newPasswordConfirm;
   const toggleNotiPref = (field) => {
     const next = { ...notiPrefs, [field]: !notiPrefs[field] };
     setNotiPrefs(next);
     localStorage.setItem(NOTI_PREF_KEY, JSON.stringify(next));
+  };
+  const openWeightModal = () => {
+    const currentWeight = effectiveWeightKg || Number(profile?.latest_weight_kg || 0);
+    setWeightInput(currentWeight ? String(currentWeight) : '');
+    setIsWeightModalOpen(true);
+  };
+  const closeWeightModal = () => {
+    setIsWeightModalOpen(false);
+  };
+  const onSubmitWeight = () => {
+    const parsed = Number(weightInput);
+    if (!Number.isFinite(parsed) || parsed <= 20 || parsed > 300) return;
+    const email = profile?.email || getCurrentUserEmail();
+    if (email) {
+      localStorage.setItem(`${WEIGHT_OVERRIDE_PREFIX}${email.toLowerCase()}`, String(parsed));
+    }
+    setWeightOverride(parsed);
+    setIsWeightModalOpen(false);
   };
 
   return (
@@ -225,7 +312,7 @@ export default function SettingsPage() {
         <article className="card">
         <div className="card-head">
           <h3>알림 설정</h3>
-          <Link to="/notifications" className="pill-btn">
+          <Link to="/notifications" className="pill-btn noti-center-btn">
             알림 센터
           </Link>
         </div>
@@ -272,13 +359,20 @@ export default function SettingsPage() {
         </div>
         </article>
 
-        <article className="card">
-        <h3>BMI 분석</h3>
-        <p className="bmi-value">{profile?.bmi ? profile.bmi.toFixed(1) : '-'}</p>
+        <article className="card bmi-card">
+        <div className="card-head">
+          <h3>BMI 분석</h3>
+          <button type="button" className="pill-btn noti-center-btn" onClick={openWeightModal}>
+            몸무게 입력
+          </button>
+        </div>
+        <div className="bmi-status-row">
+          <p className="bmi-value">{bmi > 0 ? bmi.toFixed(1) : '-'}</p>
+          <span className={`bmi-status-chip ${bmiStatus.tone}`}>{bmiStatus.label}</span>
+        </div>
         <div className="rainbow-scale">
           <div className="rainbow-marker" style={{ left: `${bmiPct}%` }} />
         </div>
-        <p className="muted">Blue → Red 스케일</p>
         </article>
 
         <article className="card">
@@ -316,49 +410,99 @@ export default function SettingsPage() {
       {isPwModalOpen && (
         <div className="modal-backdrop" role="presentation" onClick={closePasswordModal}>
           <section className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h3>비밀번호 변경</h3>
-            <p className="muted">현재 비밀번호를 먼저 확인하세요.</p>
+            <h3>회원정보 수정</h3>
 
-            <label htmlFor="old-password" className="small">현재 비밀번호</label>
-            <div className="modal-inline">
-              <input
-                id="old-password"
-                type="password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                disabled={isOldPasswordVerified}
-                placeholder="현재 비밀번호"
-              />
-              <button
-                type="button"
-                className="pill-btn"
-                onClick={onVerifyCurrentPassword}
-                disabled={pwLoading || oldPassword.length < 8 || isOldPasswordVerified}
+            {!isOldPasswordVerified && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (pwLoading || oldPassword.length < 8) return;
+                  onVerifyCurrentPassword();
+                }}
               >
-                확인
-              </button>
-            </div>
+                <label htmlFor="old-password" className="small">현재 비밀번호</label>
+                <div className="modal-inline">
+                  <input
+                    id="old-password"
+                    type="password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    placeholder="현재 비밀번호"
+                  />
+                  <button
+                    type="submit"
+                    className="pill-btn"
+                    disabled={pwLoading || oldPassword.length < 8}
+                  >
+                    확인
+                  </button>
+                </div>
+              </form>
+            )}
 
             {isOldPasswordVerified && (
               <>
-                <label htmlFor="new-password" className="small">새 비밀번호</label>
-                <input
-                  id="new-password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="새 비밀번호"
-                />
-                <label htmlFor="new-password-confirm" className="small">새 비밀번호 확인</label>
-                <input
-                  id="new-password-confirm"
-                  type="password"
-                  value={newPasswordConfirm}
-                  onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                  placeholder="새 비밀번호 확인"
-                />
-                {isPasswordMatch && <p className="status green">새 비밀번호가 일치합니다.</p>}
-                {isPasswordMismatch && <p className="status orange">새 비밀번호가 일치하지 않습니다.</p>}
+                <div className="tab-chip-row profile-edit-choice-row">
+                  <button
+                    type="button"
+                    className={`tab-chip profile-edit-choice-chip ${editTarget === 'password' ? 'active' : ''}`}
+                    onClick={() => {
+                      setEditTarget('password');
+                      setPwError('');
+                      setPwSuccess('');
+                    }}
+                  >
+                    비밀번호 변경
+                  </button>
+                  <button
+                    type="button"
+                    className={`tab-chip profile-edit-choice-chip ${editTarget === 'nickname' ? 'active' : ''}`}
+                    onClick={() => {
+                      setEditTarget('nickname');
+                      setPwError('');
+                      setPwSuccess('');
+                    }}
+                  >
+                    닉네임 변경
+                  </button>
+                </div>
+
+                {editTarget === 'password' && (
+                  <>
+                    <label htmlFor="new-password" className="small">새 비밀번호</label>
+                    <input
+                      id="new-password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="새 비밀번호"
+                    />
+                    <label htmlFor="new-password-confirm" className="small">새 비밀번호 확인</label>
+                    <input
+                      id="new-password-confirm"
+                      type="password"
+                      value={newPasswordConfirm}
+                      onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                      placeholder="새 비밀번호 확인"
+                    />
+                    {isPasswordMatch && <p className="status green">새 비밀번호가 일치합니다.</p>}
+                    {isPasswordMismatch && <p className="status orange">새 비밀번호가 일치하지 않습니다.</p>}
+                  </>
+                )}
+
+                {editTarget === 'nickname' && (
+                  <>
+                    <label htmlFor="new-nickname" className="small">새 닉네임</label>
+                    <input
+                      id="new-nickname"
+                      type="text"
+                      value={newNickname}
+                      onChange={(e) => setNewNickname(e.target.value)}
+                      placeholder="새 닉네임(2~20자)"
+                      maxLength={20}
+                    />
+                  </>
+                )}
               </>
             )}
 
@@ -372,12 +516,57 @@ export default function SettingsPage() {
               <button
                 type="button"
                 className="save-btn"
-                onClick={onSubmitPasswordChange}
-                disabled={pwLoading || !isOldPasswordVerified || !isPasswordMatch}
+                onClick={editTarget === 'nickname' ? onSubmitNicknameChange : onSubmitPasswordChange}
+                disabled={
+                  pwLoading
+                  || !isOldPasswordVerified
+                  || !editTarget
+                  || (editTarget === 'password' && !isPasswordMatch)
+                  || (editTarget === 'nickname' && (newNickname || '').trim().length < 2)
+                }
               >
-                변경 저장
+                {editTarget === 'nickname' ? '닉네임 저장' : '변경 저장'}
               </button>
             </div>
+          </section>
+        </div>
+      )}
+
+      {isWeightModalOpen && (
+        <div className="modal-backdrop" role="presentation" onClick={closeWeightModal}>
+          <section className="modal-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="weight-modal-title">몸무게 입력</h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!Number.isFinite(Number(weightInput)) || Number(weightInput) <= 20 || Number(weightInput) > 300) return;
+                onSubmitWeight();
+              }}
+            >
+              <label htmlFor="weight-input" className="small">몸무게(kg)</label>
+              <input
+                id="weight-input"
+                type="number"
+                min="20"
+                max="300"
+                step="0.1"
+                value={weightInput}
+                onChange={(e) => setWeightInput(e.target.value)}
+                placeholder="예: 68.5"
+              />
+              <div className="modal-actions weight-modal-actions">
+                <button type="button" className="danger-outline-btn weight-modal-btn" onClick={closeWeightModal}>
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="save-btn weight-modal-btn"
+                  disabled={!Number.isFinite(Number(weightInput)) || Number(weightInput) <= 20 || Number(weightInput) > 300}
+                >
+                  다음
+                </button>
+              </div>
+            </form>
           </section>
         </div>
       )}
