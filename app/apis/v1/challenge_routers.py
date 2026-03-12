@@ -46,6 +46,20 @@ def _compute_daily_score(payload: ChallengeDailyUpsertRequest) -> float:
     return _round_score(daily_score)
 
 
+def _merge_daily_values(existing: ChallengeDaily | None, req: ChallengeDailyUpsertRequest) -> ChallengeDailyUpsertRequest:
+    if existing is None:
+        return req
+
+    morning_locked = float(existing.sleep_hours or 0) > 0
+    return ChallengeDailyUpsertRequest(
+        steps=existing.steps + req.steps,
+        exercise_minutes=existing.exercise_minutes + req.exercise_minutes,
+        water_cups=existing.water_cups + req.water_cups,
+        sleep_hours=float(existing.sleep_hours) if morning_locked else req.sleep_hours,
+        no_snack=existing.no_snack if morning_locked else req.no_snack,
+    )
+
+
 def _tier_for_score(daily_score: float) -> str:
     if daily_score >= 120:
         return "success"
@@ -144,19 +158,21 @@ async def upsert_daily_challenge(
 ) -> Response:
     today = datetime.now(config.TIMEZONE).date()
     prev_index = await _previous_behavior_index(user.id, today)
+    existing = await ChallengeDaily.get_or_none(user_id=user.id, date=today)
+    merged = _merge_daily_values(existing, req)
 
-    daily_score = _compute_daily_score(req)
+    daily_score = _compute_daily_score(merged)
     tier = _tier_for_score(daily_score)
     delta = _round_delta(_clamp((daily_score - 100.0) / 1000.0, -0.03, 0.03))
     behavior_index = round(_clamp(prev_index - delta, 0.0, 1.0), 3)
 
     row, _ = await ChallengeDaily.update_or_create(
         defaults={
-            "steps": req.steps,
-            "exercise_minutes": req.exercise_minutes,
-            "water_cups": req.water_cups,
-            "sleep_hours": req.sleep_hours,
-            "no_snack": req.no_snack,
+            "steps": merged.steps,
+            "exercise_minutes": merged.exercise_minutes,
+            "water_cups": merged.water_cups,
+            "sleep_hours": merged.sleep_hours,
+            "no_snack": merged.no_snack,
             "daily_score": daily_score,
             "tier": tier,
             "behavior_index": behavior_index,

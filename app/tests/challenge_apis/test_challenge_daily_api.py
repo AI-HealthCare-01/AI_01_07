@@ -53,6 +53,43 @@ class TestChallengeDailyApi(TestCase):
             assert today["row"]["steps"] == 8500
             assert today["summary"]["message"]
 
+    async def test_daily_inputs_accumulate_and_morning_fields_lock(self):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            access_token = await self._signup_and_login(client, "challenge_accumulate@example.com")
+            headers = {"Authorization": f"Bearer {access_token}"}
+
+            first_response = await client.post(
+                "/api/v1/challenges/daily",
+                json={
+                    "steps": 3000,
+                    "exercise_minutes": 15,
+                    "water_cups": 2,
+                    "sleep_hours": 7.0,
+                    "no_snack": True,
+                },
+                headers=headers,
+            )
+            assert first_response.status_code == status.HTTP_200_OK
+
+            second_response = await client.post(
+                "/api/v1/challenges/daily",
+                json={
+                    "steps": 2500,
+                    "exercise_minutes": 20,
+                    "water_cups": 3,
+                    "sleep_hours": 5.0,
+                    "no_snack": False,
+                },
+                headers=headers,
+            )
+            assert second_response.status_code == status.HTTP_200_OK
+            payload = second_response.json()
+            assert payload["row"]["steps"] == 5500
+            assert payload["row"]["exercise_minutes"] == 35
+            assert payload["row"]["water_cups"] == 5
+            assert payload["row"]["sleep_hours"] == 7.0
+            assert payload["row"]["no_snack"] is True
+
     async def test_trend_returns_requested_days(self):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             access_token = await self._signup_and_login(client, "challenge_trend@example.com")

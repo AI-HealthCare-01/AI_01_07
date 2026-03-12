@@ -11,3 +11,19 @@ export function saveTodayChallenge(payload) {
 export function getChallengeTrend(days = 7) {
   return unwrap(apiClient.get(`/v1/challenges/trend?days=${days}`));
 }
+
+export function getChallengeTemplates() {
+  return unwrap(apiClient.get('/v1/challenges/templates'));
+}
+
+export function getUserChallenges() {
+  return unwrap(apiClient.get('/v1/challenges'));
+}
+
+export function createUserChallenge(payload) {
+  return unwrap(apiClient.post('/v1/challenges', payload));
+}
+
+export function checkUserChallenge(challengeId, payload) {
+  return unwrap(apiClient.post(`/v1/challenges/${challengeId}/check`, payload));
+}

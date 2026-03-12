@@ -7,6 +7,7 @@ from app.core import config
 TORTOISE_APP_MODELS = [
     "aerich.models",
     "app.models.challenges",
+    "app.models.user_challenges",
     "app.models.checkin",
     "app.models.notifications",
     "app.models.users",
