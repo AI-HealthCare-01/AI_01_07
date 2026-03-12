@@ -456,7 +456,6 @@ export default function FoodPage() {
           <strong>{todayData?.summary?.total_kcal ?? 0} kcal</strong>
         </div>
         {todayLoading && <p className="food-subtitle">불러오는 중...</p>}
-        {todayError && <div className="error">{todayError}</div>}
 
         {!todayLoading && todayData && (
           <>

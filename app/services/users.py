@@ -81,6 +81,8 @@ class UserManageService:
 
         latest = risk_rows[-1] if risk_rows else None
         bmi = float(latest.bmi) if latest else None
+        latest_height_cm = float(latest.height_cm) if latest else None
+        latest_weight_kg = float(latest.weight_kg) if latest else None
 
         history_7d = []
         risk_trend_7d = []
@@ -109,6 +111,8 @@ class UserManageService:
             is_admin=user.is_admin,
             onboarding_completed=latest is not None,
             bmi=bmi,
+            latest_height_cm=latest_height_cm,
+            latest_weight_kg=latest_weight_kg,
             history_7d=history_7d,
             risk_trend_7d=risk_trend_7d,
         )

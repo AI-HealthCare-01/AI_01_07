@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { getTodayChallenge, saveTodayChallenge } from '../api/challengeApi.js';
 
 const DEFAULT_FORM = {
@@ -183,15 +182,6 @@ export default function CheckinPage() {
       <button type="button" className="save-btn" onClick={onSave} disabled={saving}>
         {saving ? '저장 중...' : '저장하기'}
       </button>
-
-      <div className="checkin-nav-row">
-        <Link to="/challenge" className="pill-btn checkin-nav-btn">
-          챌린지로
-        </Link>
-        <Link to="/home" className="pill-btn checkin-nav-btn">
-          홈으로
-        </Link>
-      </div>
     </section>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
-import { clearCurrentUserEmail } from '../utils/onboardingGate.js';
+import { clearCurrentUserEmail, getCurrentUserEmail } from '../utils/onboardingGate.js';
 
 const METRIC_META = {
   water_ml: { label: '수분섭취', max: 5000, unit: 'ml' },
@@ -14,6 +14,7 @@ const DEFAULT_NOTI_PREFS = {
   checkin_reminder: true,
   weekly_summary: true,
 };
+const WEIGHT_OVERRIDE_PREFIX = 'profile_weight_override:';
 
 function toShortDate(dateText) {
   return dateText?.slice(5) || '';
@@ -98,6 +99,7 @@ export default function SettingsPage() {
   const [pwSuccess, setPwSuccess] = useState('');
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [weightInput, setWeightInput] = useState('');
+  const [weightOverride, setWeightOverride] = useState(null);
   const [notiPrefs, setNotiPrefs] = useState(() => {
     try {
       return { ...DEFAULT_NOTI_PREFS, ...(JSON.parse(localStorage.getItem(NOTI_PREF_KEY) || '{}')) };
@@ -112,6 +114,20 @@ export default function SettingsPage() {
       .then((res) => setProfile(res.data))
       .catch((err) => setError(err?.response?.data?.detail || '프로필 정보를 불러오지 못했습니다.'));
   }, []);
+
+  useEffect(() => {
+    const email = profile?.email || getCurrentUserEmail();
+    if (!email) {
+      setWeightOverride(null);
+      return;
+    }
+    const stored = Number(localStorage.getItem(`${WEIGHT_OVERRIDE_PREFIX}${email.toLowerCase()}`));
+    if (Number.isFinite(stored) && stored > 20 && stored <= 300) {
+      setWeightOverride(stored);
+      return;
+    }
+    setWeightOverride(null);
+  }, [profile?.email]);
 
   const onLogout = () => {
     const confirmed = window.confirm('로그아웃하시겠습니까?');
@@ -235,8 +251,22 @@ export default function SettingsPage() {
     }
   };
 
-  const bmi = profile?.bmi ?? 0;
+  const latestHeightCm = Number(profile?.latest_height_cm || 0);
+  const effectiveWeightKg = weightOverride ?? Number(profile?.latest_weight_kg || 0);
+  const calculatedBmi = latestHeightCm > 0 && effectiveWeightKg > 0
+    ? effectiveWeightKg / (((latestHeightCm / 100) ** 2) + 1e-9)
+    : null;
+  const bmi = calculatedBmi ?? (profile?.bmi ?? 0);
   const bmiPct = Math.min(100, Math.max(0, ((bmi - 15) / 45) * 100));
+  const bmiStatus = !profile?.bmi
+    ? { label: 'BMI 정보가 없습니다.', tone: '' }
+    : bmi >= 25
+      ? { label: '비만', tone: 'orange' }
+      : bmi >= 23
+        ? { label: '경계', tone: 'yellow' }
+        : bmi >= 18.5
+          ? { label: '정상', tone: 'green' }
+          : { label: '저체중', tone: '' };
   const isPasswordMatch = newPasswordConfirm.length > 0 && newPassword === newPasswordConfirm;
   const isPasswordMismatch = newPasswordConfirm.length > 0 && newPassword !== newPasswordConfirm;
   const toggleNotiPref = (field) => {
@@ -245,7 +275,7 @@ export default function SettingsPage() {
     localStorage.setItem(NOTI_PREF_KEY, JSON.stringify(next));
   };
   const openWeightModal = () => {
-    const currentWeight = profile?.history_7d?.at(-1)?.weight_kg;
+    const currentWeight = effectiveWeightKg || Number(profile?.latest_weight_kg || 0);
     setWeightInput(currentWeight ? String(currentWeight) : '');
     setIsWeightModalOpen(true);
   };
@@ -255,8 +285,12 @@ export default function SettingsPage() {
   const onSubmitWeight = () => {
     const parsed = Number(weightInput);
     if (!Number.isFinite(parsed) || parsed <= 20 || parsed > 300) return;
+    const email = profile?.email || getCurrentUserEmail();
+    if (email) {
+      localStorage.setItem(`${WEIGHT_OVERRIDE_PREFIX}${email.toLowerCase()}`, String(parsed));
+    }
+    setWeightOverride(parsed);
     setIsWeightModalOpen(false);
-    navigate('/survey?mode=edit', { state: { prefillWeightKg: parsed } });
   };
 
   return (
@@ -332,7 +366,10 @@ export default function SettingsPage() {
             몸무게 입력
           </button>
         </div>
-        <p className="bmi-value">{profile?.bmi ? profile.bmi.toFixed(1) : '-'}</p>
+        <div className="bmi-status-row">
+          <p className="bmi-value">{bmi > 0 ? bmi.toFixed(1) : '-'}</p>
+          <span className={`bmi-status-chip ${bmiStatus.tone}`}>{bmiStatus.label}</span>
+        </div>
         <div className="rainbow-scale">
           <div className="rainbow-marker" style={{ left: `${bmiPct}%` }} />
         </div>

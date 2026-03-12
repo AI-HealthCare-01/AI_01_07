@@ -63,7 +63,7 @@ function getHeroMessage(points) {
 
 function getRiskStageLabel(riskProbability) {
   if (riskProbability >= 0.7) return '위험';
-  if (riskProbability >= 0.4) return '주의';
+  if (riskProbability > 0.4) return '주의';
   return '정상';
 }
 
@@ -177,6 +177,9 @@ export default function HomePage() {
       return {
         date: isoDate,
         risk_probability: adjustedRisk,
+        risk_normal: adjustedRisk <= 0.4 ? adjustedRisk : null,
+        risk_caution: adjustedRisk > 0.4 && adjustedRisk < 0.7 ? adjustedRisk : null,
+        risk_danger: adjustedRisk >= 0.7 ? adjustedRisk : null,
         riskPercent: Math.round(adjustedRisk * 100),
         riskStageLabel: getRiskStageLabel(adjustedRisk),
         hasBehaviorRecord,
@@ -220,7 +223,6 @@ export default function HomePage() {
       <article className="card home-graph-card">
         <div className="card-head">
           <div>
-            <span className="home-summary-badge">이번 주 요약</span>
             <h3>당뇨 발병률 예측</h3>
           </div>
           <Link to="/checkin" className="pill-btn">
@@ -257,14 +259,6 @@ export default function HomePage() {
           <div className="challenge-trend-wrap">
             <ResponsiveContainer>
               <LineChart data={weeklyRiskData}>
-                <defs>
-                  <linearGradient id="riskLineGradient" x1="0" y1="1" x2="0" y2="0">
-                    <stop offset="0%" stopColor="#27a85f" />
-                    <stop offset="40%" stopColor="#27a85f" />
-                    <stop offset="70%" stopColor="#d8b33d" />
-                    <stop offset="100%" stopColor="#df5b57" />
-                  </linearGradient>
-                </defs>
                 <CartesianGrid stroke="#e4edf5" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
@@ -287,12 +281,35 @@ export default function HomePage() {
                 <Tooltip content={<RiskTooltip />} />
                 <Line
                   type="monotone"
-                  dataKey="risk_probability"
-                  stroke="url(#riskLineGradient)"
+                  dataKey="risk_normal"
+                  stroke="#27a85f"
                   strokeWidth={3}
+                  dot={false}
+                  activeDot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="risk_caution"
+                  stroke="#d8b33d"
+                  strokeWidth={3}
+                  dot={false}
+                  activeDot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="risk_danger"
+                  stroke="#df5b57"
+                  strokeWidth={3}
+                  dot={false}
+                  activeDot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="risk_probability"
+                  stroke="transparent"
+                  strokeWidth={1}
                   dot={<RiskDot />}
                   activeDot={<RiskDot />}
-                  connectNulls
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -303,8 +320,7 @@ export default function HomePage() {
       <article className={`card home-score-card ${scoreTone}`}>
         <div className="card-head">
           <div>
-            <span className="home-summary-badge">오늘 요약</span>
-            <h3>나의 건강 점수</h3>
+            <h3>오늘 건강 점수</h3>
           </div>
           <Link to="/checkin" className="pill-btn">
             기록하기
