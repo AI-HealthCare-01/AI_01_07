@@ -1008,6 +1008,12 @@ a {
   color: #173042;
 }
 
+.home-score-value .home-score-empty-text {
+  font-size: 16px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
 .home-score-value span {
   padding-bottom: 5px;
   font-size: 15px;

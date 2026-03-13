@@ -1,4 +1,5 @@
 const CURRENT_USER_EMAIL_KEY = 'current_user_email';
+const CURRENT_USER_NAME_KEY = 'current_user_name';
 const ONBOARDING_DONE_PREFIX = 'onboarding_done:';
 const ONBOARDING_DONE_NOTI_PENDING_PREFIX = 'onboarding_done_notice_pending:';
 const ONBOARDING_RISK_PREFIX = 'onboarding_risk:';
@@ -22,6 +23,20 @@ export function getCurrentUserEmail() {
 
 export function clearCurrentUserEmail() {
   localStorage.removeItem(CURRENT_USER_EMAIL_KEY);
+}
+
+export function setCurrentUserName(name) {
+  const normalized = String(name || '').trim();
+  if (!normalized) return;
+  localStorage.setItem(CURRENT_USER_NAME_KEY, normalized);
+}
+
+export function getCurrentUserName() {
+  return localStorage.getItem(CURRENT_USER_NAME_KEY) || '';
+}
+
+export function clearCurrentUserName() {
+  localStorage.removeItem(CURRENT_USER_NAME_KEY);
 }
 
 export function hasCompletedOnboarding(email) {

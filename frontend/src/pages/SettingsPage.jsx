@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
 import {
   clearCurrentUserEmail,
+  clearCurrentUserName,
   getCurrentUserEmail,
   getOnboardingBmiSnapshot,
+  setCurrentUserName,
   saveOnboardingBmiSnapshot,
 } from '../utils/onboardingGate.js';
 
@@ -118,6 +120,10 @@ export default function SettingsPage() {
     let cancelled = false;
     const syncBmiSnapshot = (nextProfile) => {
       const email = nextProfile?.email || getCurrentUserEmail();
+      const name = String(nextProfile?.name || '').trim();
+      if (name) {
+        setCurrentUserName(name);
+      }
       const h = Number(nextProfile?.latest_height_cm || 0);
       const w = Number(nextProfile?.latest_weight_kg || 0);
       const bmi = Number(nextProfile?.bmi || 0);
@@ -224,6 +230,7 @@ export default function SettingsPage() {
     if (!confirmed) return;
     sessionStorage.removeItem('access_token');
     clearCurrentUserEmail();
+    clearCurrentUserName();
     navigate('/auth/login', { replace: true });
   };
 
@@ -312,6 +319,7 @@ export default function SettingsPage() {
     try {
       const response = await apiClient.patch('/v1/users/me', { name: trimmed });
       setProfile((prev) => ({ ...prev, ...(response.data || {}), name: trimmed }));
+      setCurrentUserName(trimmed);
       setPwSuccess('닉네임이 변경되었습니다.');
       setTimeout(() => {
         closePasswordModal();

@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import date, timedelta
 from typing import Annotated
 
 import httpx
@@ -10,6 +11,7 @@ from app.dependencies.security import get_request_user
 from app.dtos.onboarding import (
     LatestOnboardingProfileResponse,
     OnboardingPredictionResponse,
+    OnboardingRiskTrendPoint,
     OnboardingSurveyRequest,
     RiskStage,
 )
@@ -83,6 +85,30 @@ async def get_latest_onboarding_profile(user: Annotated[User, Depends(get_reques
         bmi=float(latest.bmi),
     )
     return Response(data.model_dump(), status_code=status.HTTP_200_OK)
+
+
+@onboarding_router.get("/risk-trend", response_model=list[OnboardingRiskTrendPoint], status_code=status.HTTP_200_OK)
+async def get_onboarding_risk_trend(user: Annotated[User, Depends(get_request_user)]) -> Response:
+    rows = await OnboardingSurvey.filter(user=user).order_by("created_at")
+    if not rows:
+        return Response([], status_code=status.HTTP_200_OK)
+
+    risk_by_date: dict[date, float] = {}
+    for row in rows:
+        risk_by_date[row.created_at.date()] = float(row.risk_probability)
+
+    start_date = rows[0].created_at.date()
+    today = date.today()
+    current_risk = float(risk_by_date.get(start_date, 0.0))
+    points: list[OnboardingRiskTrendPoint] = []
+    day_cursor = start_date
+    while day_cursor <= today:
+        if day_cursor in risk_by_date:
+            current_risk = float(risk_by_date[day_cursor])
+        points.append(OnboardingRiskTrendPoint(date=day_cursor.isoformat(), risk_probability=current_risk))
+        day_cursor += timedelta(days=1)
+
+    return Response([point.model_dump() for point in points], status_code=status.HTTP_200_OK)
 
 
 @onboarding_router.post("", response_model=OnboardingPredictionResponse, status_code=status.HTTP_201_CREATED)

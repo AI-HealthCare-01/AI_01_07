@@ -94,3 +94,8 @@ class LatestOnboardingProfileResponse(BaseSerializerModel):
     height_cm: float | None
     weight_kg: float | None
     bmi: float | None
+
+
+class OnboardingRiskTrendPoint(BaseSerializerModel):
+    date: str
+    risk_probability: float

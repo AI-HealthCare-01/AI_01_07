@@ -13,7 +13,12 @@ import { apiClient } from '../api/client.js';
 import { getChallengeTrend, getTodayChallenge } from '../api/challengeApi.js';
 import { loadActiveChallenge, loadChallengeTargetOverrides } from '../utils/challengeSelection.js';
 import { buildDailyChallengeItems, getDailyAchievementScore } from '../utils/dailyChallengeMetrics.js';
-import { getCurrentUserEmail, getOnboardingRiskSnapshot, hasCompletedOnboarding } from '../utils/onboardingGate.js';
+import {
+  getCurrentUserEmail,
+  getCurrentUserName,
+  hasCompletedOnboarding,
+  setCurrentUserName,
+} from '../utils/onboardingGate.js';
 
 function toShortDate(dateText) {
   if (!dateText) return '';
@@ -100,11 +105,12 @@ function formatTodayLabel() {
 
 export default function HomePage() {
   const [trendData, setTrendData] = useState([]);
-  const [displayName, setDisplayName] = useState('사용자');
+  const [displayName, setDisplayName] = useState(() => getCurrentUserName() || '사용자');
   const [activeChallenge, setActiveChallenge] = useState(null);
   const [todayRow, setTodayRow] = useState(null);
   const [targetOverrides, setTargetOverrides] = useState({});
   const [profileOverview, setProfileOverview] = useState(null);
+  const [riskTrend, setRiskTrend] = useState([]);
   const [showPerfectCelebration, setShowPerfectCelebration] = useState(false);
 
   useEffect(() => {
@@ -119,23 +125,46 @@ export default function HomePage() {
     apiClient
       .get('/v1/users/me/profile-overview')
       .then((res) => {
-        setDisplayName(res.data?.name || '사용자');
+        const name = String(res.data?.name || '').trim();
+        if (name) {
+          setCurrentUserName(name);
+          setDisplayName(name);
+        } else {
+          setDisplayName(getCurrentUserName() || '사용자');
+        }
         setProfileOverview(res.data || null);
       })
       .catch(() => {
-        setDisplayName('사용자');
+        apiClient
+          .get('/v1/users/me')
+          .then((meRes) => {
+            const name = String(meRes.data?.name || '').trim();
+            if (name) {
+              setCurrentUserName(name);
+              setDisplayName(name);
+            } else {
+              setDisplayName(getCurrentUserName() || '사용자');
+            }
+          })
+          .catch(() => {
+            const cachedName = getCurrentUserName();
+            setDisplayName(cachedName || '사용자');
+          });
         setProfileOverview(null);
       });
+
+    apiClient
+      .get('/v1/onboarding/risk-trend')
+      .then((res) => setRiskTrend(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setRiskTrend([]));
 
     setActiveChallenge(loadActiveChallenge());
     setTargetOverrides(loadChallengeTargetOverrides());
   }, []);
 
   const weeklyRiskData = useMemo(() => {
-    const surveyPoints = profileOverview?.risk_trend_7d ?? [];
-    const email = getCurrentUserEmail();
-    const localSnapshot = getOnboardingRiskSnapshot(email);
-    const points = surveyPoints.length > 0 ? surveyPoints : localSnapshot ? [localSnapshot] : [];
+    const surveyPoints = riskTrend.length > 0 ? riskTrend : (profileOverview?.risk_trend_7d ?? []);
+    const points = surveyPoints;
 
     return points.map((point) => {
       const risk = clamp(Number(point.risk_probability ?? 0), 0, 1);
@@ -149,7 +178,7 @@ export default function HomePage() {
         riskStageLabel: getRiskStageLabel(risk),
       };
     });
-  }, [profileOverview]);
+  }, [profileOverview, riskTrend]);
 
   const riskChartData = useMemo(() => weeklyRiskData.map((point, index) => ({ ...point, x: index })), [weeklyRiskData]);
 
@@ -338,7 +367,7 @@ export default function HomePage() {
                 <span>/100</span>
               </>
             ) : (
-              <strong>오늘 아직 기록이 없어요</strong>
+              <strong className="home-score-empty-text">오늘 아직 기록이 없어요</strong>
             )}
           </div>
           <p className="home-score-copy">

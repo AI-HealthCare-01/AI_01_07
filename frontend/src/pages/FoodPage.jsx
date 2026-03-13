@@ -3,6 +3,23 @@ import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recha
 
 const PASTEL_COLORS = ['#FFD6A5', '#BDE0FE', '#CDEAC0'];
 
+function toFriendlyErrorMessage(status, rawText, fallback) {
+  const detail = String(rawText || '').trim();
+  if (status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.';
+  if (status === 403) return '요청 권한이 없습니다.';
+  if (status === 404) return '요청한 정보를 찾을 수 없습니다.';
+  if (status >= 500) return '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+  return detail || fallback;
+}
+
+function toFriendlyNetworkMessage(error, fallback) {
+  const message = String(error instanceof Error ? error.message : '').toLowerCase();
+  if (message.includes('failed to fetch') || message.includes('network')) {
+    return '네트워크 연결을 확인해 주세요.';
+  }
+  return fallback;
+}
+
 export default function FoodPage() {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
@@ -18,6 +35,7 @@ export default function FoodPage() {
   const [saveError, setSaveError] = useState('');
   const [todayData, setTodayData] = useState(null);
   const [todayLoading, setTodayLoading] = useState(false);
+  const [todayError, setTodayError] = useState('');
   const [recordEditMode, setRecordEditMode] = useState(false);
   const [deletingMealId, setDeletingMealId] = useState(null);
 
@@ -56,6 +74,7 @@ export default function FoodPage() {
 
   const loadTodayMeals = useCallback(async () => {
     setTodayLoading(true);
+    setTodayError('');
     try {
       const res = await fetch('/api/v1/meals/today', {
         headers: {
@@ -64,13 +83,15 @@ export default function FoodPage() {
       });
       if (!res.ok) {
         const text = await res.text();
-        window.alert(text || '오늘 식단 기록을 불러오지 못했습니다.');
+        setTodayData(null);
+        setTodayError(toFriendlyErrorMessage(res.status, text, '오늘 식단 기록을 불러오지 못했습니다.'));
         return;
       }
       const data = await res.json();
       setTodayData(data);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : '오늘 식단 기록 조회 중 오류가 발생했습니다.');
+      setTodayData(null);
+      setTodayError(toFriendlyNetworkMessage(e, '오늘 식단 기록 조회 중 오류가 발생했습니다.'));
     } finally {
       setTodayLoading(false);
     }
@@ -94,7 +115,7 @@ export default function FoodPage() {
       const res = await fetch('/api/v1/food/analyze', { method: 'POST', body: fd });
       if (!res.ok) {
         const text = await res.text();
-        setError(text || '분석 요청에 실패했습니다.');
+        setError(toFriendlyErrorMessage(res.status, text, '분석 요청에 실패했습니다.'));
         return;
       }
 
@@ -102,7 +123,7 @@ export default function FoodPage() {
       setResultData(data);
       setMenuInput(data?.chosen?.name_ko || data?.chosen?.label || '');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '분석 중 오류가 발생했습니다.');
+      setError(toFriendlyNetworkMessage(e, '분석 중 오류가 발생했습니다.'));
     } finally {
       setLoading(false);
     }
@@ -127,7 +148,7 @@ export default function FoodPage() {
 
       if (!res.ok) {
         const text = await res.text();
-        setReanalyzeError(text || '재분석에 실패했습니다.');
+        setReanalyzeError(toFriendlyErrorMessage(res.status, text, '재분석에 실패했습니다.'));
         return;
       }
 
@@ -135,7 +156,7 @@ export default function FoodPage() {
       setResultData(next);
       setEditing(false);
     } catch (e) {
-      setReanalyzeError(e instanceof Error ? e.message : '재분석 중 오류가 발생했습니다.');
+      setReanalyzeError(toFriendlyNetworkMessage(e, '재분석 중 오류가 발생했습니다.'));
     } finally {
       setReanalyzing(false);
     }
@@ -165,14 +186,14 @@ export default function FoodPage() {
 
       if (!res.ok) {
         const text = await res.text();
-        setSaveError(text || '저장에 실패했습니다.');
+        setSaveError(toFriendlyErrorMessage(res.status, text, '저장에 실패했습니다.'));
         return;
       }
 
       const payload = await res.json();
       setTodayData(payload.today);
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : '저장 중 오류가 발생했습니다.');
+      setSaveError(toFriendlyNetworkMessage(e, '저장 중 오류가 발생했습니다.'));
     } finally {
       setSaving(false);
     }
@@ -191,14 +212,14 @@ export default function FoodPage() {
 
       if (!res.ok) {
         const text = await res.text();
-        window.alert(text || '식단 기록 삭제에 실패했습니다.');
+        window.alert(toFriendlyErrorMessage(res.status, text, '식단 기록 삭제에 실패했습니다.'));
         return;
       }
 
       const nextToday = await res.json();
       setTodayData(nextToday);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : '식단 기록 삭제 중 오류가 발생했습니다.');
+      window.alert(toFriendlyNetworkMessage(e, '식단 기록 삭제 중 오류가 발생했습니다.'));
     } finally {
       setDeletingMealId(null);
     }
@@ -453,6 +474,7 @@ export default function FoodPage() {
           <strong>{todayData?.summary?.total_kcal ?? 0} kcal</strong>
         </div>
         {todayLoading && <p className="food-subtitle">불러오는 중...</p>}
+        {!todayLoading && todayError && <p className="food-subtitle">{todayError}</p>}
 
         {!todayLoading && todayData && (
           <>
