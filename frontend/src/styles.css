@@ -432,7 +432,19 @@ a {
   margin-top: 10px;
   height: 12px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #2a7cff, #2cd8d5, #e6c229, #ff7f11, #d7263d);
+  background: linear-gradient(
+    90deg,
+    #4d7fe3 0%,
+    #4f87dc 14%,
+    #45a08d 22%,
+    #2ea965 39.5%,
+    #9eb24c 45%,
+    #d4b13b 49.5%,
+    #dd9a3c 62%,
+    #e07b39 75%,
+    #d86443 87%,
+    #cf4a4a 100%
+  );
 }
 
 .rainbow-marker {
@@ -443,6 +455,8 @@ a {
   border-radius: 8px;
   background: #1f2b38;
   transform: translateX(-50%);
+  transition: left 280ms ease, transform 280ms ease;
+  will-change: left, transform;
 }
 
 .metric-group + .metric-group {
@@ -2259,6 +2273,11 @@ a {
 .bmi-status-chip.orange {
   background: #ffe9dd;
   color: #b95016;
+}
+
+.bmi-status-chip.red {
+  background: #fde8e8;
+  color: #b42318;
 }
 
 .bmi-card {

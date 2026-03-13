@@ -32,7 +32,7 @@ export default function LoginPage() {
 
     try {
       const response = await apiClient.post('/v1/auth/login', { email, password });
-      localStorage.setItem('access_token', response.data.access_token);
+      sessionStorage.setItem('access_token', response.data.access_token);
       setCurrentUserEmail(email);
       const nextPath = await resolveNextPath(email);
       navigate(nextPath);
@@ -52,7 +52,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(firebaseAuth, googleProvider);
       const idToken = await result.user.getIdToken();
       const response = await apiClient.post('/v1/auth/firebase-google', { id_token: idToken });
-      localStorage.setItem('access_token', response.data.access_token);
+      sessionStorage.setItem('access_token', response.data.access_token);
       const googleEmail = response.data.email || result.user.email || '';
       setCurrentUserEmail(googleEmail);
       const nextPath = await resolveNextPath(googleEmail);

@@ -13,6 +13,7 @@ import { apiClient } from '../api/client.js';
 import { getChallengeTrend, getTodayChallenge } from '../api/challengeApi.js';
 import { loadActiveChallenge, loadChallengeTargetOverrides } from '../utils/challengeSelection.js';
 import { buildDailyChallengeItems, getDailyAchievementScore } from '../utils/dailyChallengeMetrics.js';
+import { getCurrentUserEmail, getOnboardingRiskSnapshot, hasCompletedOnboarding } from '../utils/onboardingGate.js';
 
 function toShortDate(dateText) {
   if (!dateText) return '';
@@ -21,21 +22,6 @@ function toShortDate(dateText) {
     day: 'numeric',
     timeZone: 'Asia/Seoul',
   });
-}
-
-function getWeekStart(date = new Date()) {
-  const base = new Date(date);
-  const day = base.getDay();
-  base.setHours(0, 0, 0, 0);
-  base.setDate(base.getDate() - day);
-  return base;
-}
-
-function toIsoDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function clamp(value, low, high) {
@@ -80,25 +66,16 @@ function getScoreTone(score) {
   return 'care';
 }
 
-function RiskTooltip({ active, payload, label }) {
+function RiskTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const point = payload.find((item) => item?.payload)?.payload;
   if (!point) return null;
 
   return (
     <div className="home-graph-tooltip">
-      <span className="home-graph-tooltip-date">{toShortDate(label)}</span>
-      {point.hasBehaviorRecord ? (
-        <>
-          <strong>상태: {point.riskStageLabel}</strong>
-          <p>위험도: {point.riskPercent}%</p>
-        </>
-      ) : (
-        <>
-          <strong>기록 없음</strong>
-          <p>기본값 표시</p>
-        </>
-      )}
+      <span className="home-graph-tooltip-date">{toShortDate(point.date)}</span>
+      <strong>상태: {point.riskStageLabel}</strong>
+      <p>위험도: {point.riskPercent}%</p>
     </div>
   );
 }
@@ -106,10 +83,6 @@ function RiskTooltip({ active, payload, label }) {
 function RiskDot(props) {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null) return null;
-
-  if (!payload?.hasBehaviorRecord) {
-    return <circle cx={cx} cy={cy} r={4} fill="#ffffff" stroke="#c4cdd7" strokeWidth={2} />;
-  }
 
   const colors = getRiskStageColor(payload.riskStageLabel);
   return <circle cx={cx} cy={cy} r={4} fill={colors.fill} stroke={colors.stroke} strokeWidth={2} />;
@@ -159,40 +132,26 @@ export default function HomePage() {
   }, []);
 
   const weeklyRiskData = useMemo(() => {
-    const start = getWeekStart();
-    const challengeMap = new Map(trendData.map((point) => [point.date, point]));
     const surveyPoints = profileOverview?.risk_trend_7d ?? [];
-    const surveyMap = new Map(surveyPoints.map((point) => [point.date, Number(point.risk_probability ?? 0.5)]));
-    const latestSurveyRisk =
-      surveyPoints.length > 0 ? Number(surveyPoints[surveyPoints.length - 1]?.risk_probability ?? 0.5) : 0.5;
+    const email = getCurrentUserEmail();
+    const localSnapshot = getOnboardingRiskSnapshot(email);
+    const points = surveyPoints.length > 0 ? surveyPoints : localSnapshot ? [localSnapshot] : [];
 
-    return Array.from({ length: 7 }, (_, index) => {
-      const current = new Date(start);
-      current.setDate(start.getDate() + index);
-      const isoDate = toIsoDate(current);
-      const challengePoint = challengeMap.get(isoDate) ?? null;
-      const baseRisk = Number(surveyMap.get(isoDate) ?? latestSurveyRisk);
-      const behaviorIndex = Number(challengePoint?.behavior_index ?? 0.5);
-      const hasBehaviorRecord = Boolean(challengePoint?.has_record);
-
-      const goodEffect = Math.max(0, 0.5 - behaviorIndex);
-      const careEffect = Math.max(0, behaviorIndex - 0.5);
-      const adjustedRisk = hasBehaviorRecord
-        ? clamp(baseRisk - goodEffect * 1.1 + careEffect * 0.45, 0, 1)
-        : clamp(baseRisk, 0, 1);
-
+    return points.map((point) => {
+      const risk = clamp(Number(point.risk_probability ?? 0), 0, 1);
       return {
-        date: isoDate,
-        risk_probability: adjustedRisk,
-        risk_normal: adjustedRisk <= 0.4 ? adjustedRisk : null,
-        risk_caution: adjustedRisk > 0.4 && adjustedRisk < 0.7 ? adjustedRisk : null,
-        risk_danger: adjustedRisk >= 0.7 ? adjustedRisk : null,
-        riskPercent: Math.round(adjustedRisk * 100),
-        riskStageLabel: getRiskStageLabel(adjustedRisk),
-        hasBehaviorRecord,
+        date: point.date,
+        risk_probability: risk,
+        risk_normal: risk <= 0.4 ? risk : null,
+        risk_caution: risk > 0.4 && risk < 0.7 ? risk : null,
+        risk_danger: risk >= 0.7 ? risk : null,
+        riskPercent: Math.round(risk * 100),
+        riskStageLabel: getRiskStageLabel(risk),
       };
     });
-  }, [profileOverview, trendData]);
+  }, [profileOverview]);
+
+  const riskChartData = useMemo(() => weeklyRiskData.map((point, index) => ({ ...point, x: index })), [weeklyRiskData]);
 
   const visibleChallengeItems = useMemo(
     () => buildDailyChallengeItems(todayRow, targetOverrides).slice(0, 4),
@@ -237,8 +196,11 @@ export default function HomePage() {
     return { ...activeChallenge, current, target, progress };
   })();
 
-  const hasSurvey = Boolean(profileOverview?.onboarding_completed);
-  const hasRiskRecords = weeklyRiskData.some((point) => point.hasBehaviorRecord);
+  const hasSurvey =
+    Boolean(profileOverview?.onboarding_completed) ||
+    weeklyRiskData.length > 0 ||
+    hasCompletedOnboarding(getCurrentUserEmail());
+  const hasRiskRecords = weeklyRiskData.length > 0;
 
   return (
     <section className="stack">
@@ -286,12 +248,18 @@ export default function HomePage() {
         <div className="challenge-trend-card">
           <div className="challenge-trend-wrap">
             <ResponsiveContainer>
-              <LineChart data={weeklyRiskData}>
+              <LineChart data={riskChartData}>
                 <CartesianGrid stroke="#e4edf5" strokeDasharray="3 3" />
                 <XAxis
-                  dataKey="date"
-                  interval={0}
-                  tickFormatter={toShortDate}
+                  type="number"
+                  dataKey="x"
+                  domain={[0, Math.max(1, riskChartData.length - 1)]}
+                  ticks={riskChartData.map((point) => point.x)}
+                  allowDecimals={false}
+                  tickFormatter={(value) => {
+                    const point = riskChartData[value];
+                    return point ? toShortDate(point.date) : '';
+                  }}
                   tick={{ fontSize: 11 }}
                   tickMargin={8}
                 />

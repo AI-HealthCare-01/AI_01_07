@@ -69,14 +69,8 @@ class UserManageService:
 
         risk_rows = await OnboardingSurvey.filter(user=user, created_at__lt=end_dt).order_by("created_at")
         risk_by_date = {}
-        last_known_before_window = None
         for row in risk_rows:
-            row_date = row.created_at.date()
-            row_risk = float(row.risk_probability)
-            if row_date < start_date:
-                last_known_before_window = row_risk
-                continue
-            risk_by_date[row_date] = row_risk
+            risk_by_date[row.created_at.date()] = float(row.risk_probability)
 
         latest = risk_rows[-1] if risk_rows else None
         bmi = float(latest.bmi) if latest else None
@@ -85,7 +79,6 @@ class UserManageService:
 
         history_7d = []
         risk_trend_7d = []
-        current_risk = float(last_known_before_window or 0.0)
         for i in range(7):
             d = start_date + timedelta(days=i)
             c = history_by_date.get(d)
@@ -97,9 +90,16 @@ class UserManageService:
                     exercise_minutes=int(c.exercise_minutes) if c else 0,
                 )
             )
-            if d in risk_by_date:
-                current_risk = float(risk_by_date[d])
-            risk_trend_7d.append(ProfileRiskPoint(date=d, risk_probability=current_risk))
+
+        if risk_rows:
+            first_risk_date = risk_rows[0].created_at.date()
+            current_risk = float(risk_by_date.get(first_risk_date, 0.0))
+            day_cursor = first_risk_date
+            while day_cursor <= today:
+                if day_cursor in risk_by_date:
+                    current_risk = float(risk_by_date[day_cursor])
+                risk_trend_7d.append(ProfileRiskPoint(date=day_cursor, risk_probability=current_risk))
+                day_cursor += timedelta(days=1)
 
         return UserProfileOverviewResponse(
             id=user.id,
