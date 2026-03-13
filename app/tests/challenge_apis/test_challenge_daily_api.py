@@ -118,6 +118,8 @@ class TestChallengeDailyApi(TestCase):
             assert len(trend) == 7
             assert trend[-2]["date"] == yesterday.isoformat()
             assert trend[-2]["behavior_index"] == 0.53
+            assert trend[-2]["has_record"] is True
+            assert trend[-1]["has_record"] is False
 
     async def test_challenge_today_unauthorized(self):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

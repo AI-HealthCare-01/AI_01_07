@@ -12,10 +12,7 @@ import {
   saveActiveChallenge,
   saveChallengeTargetOverride,
 } from '../utils/challengeSelection.js';
-
-function progressPercent(value, target) {
-  return Math.max(0, Math.min(100, Math.round((value / target) * 100)));
-}
+import { buildDailyChallengeItems, progressPercent } from '../utils/dailyChallengeMetrics.js';
 
 export default function ChallengePage() {
   const [todayData, setTodayData] = useState(null);
@@ -52,44 +49,7 @@ export default function ChallengePage() {
   }, [toastMessage]);
 
   const challengeItems = useMemo(() => {
-    const row = todayData?.row;
-    return [
-      {
-        icon: '💧',
-        title: '물 마시기',
-        current: row?.water_cups ?? 0,
-        target: targetOverrides['물 마시기'] ?? 8,
-        unit: '컵',
-      },
-      {
-        icon: '🚶',
-        title: '걷기 운동',
-        current: row?.steps ?? 0,
-        target: targetOverrides['걷기 운동'] ?? 8000,
-        unit: '보',
-      },
-      {
-        icon: '🏃',
-        title: '운동',
-        current: row?.exercise_minutes ?? 0,
-        target: targetOverrides.운동 ?? 30,
-        unit: '분',
-      },
-      {
-        icon: '🛌',
-        title: '수면시간',
-        current: row?.sleep_hours ?? 0,
-        target: targetOverrides.수면시간 ?? 8,
-        unit: '시간',
-      },
-      {
-        icon: '🌙',
-        title: '야식 금지',
-        current: row?.no_snack ? 1 : 0,
-        target: targetOverrides['야식 금지'] ?? 1,
-        unit: '달성',
-      },
-    ];
+    return buildDailyChallengeItems(todayData?.row, targetOverrides);
   }, [todayData, targetOverrides]);
 
   const todayChallenge = useMemo(() => {

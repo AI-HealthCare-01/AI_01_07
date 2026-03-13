@@ -218,6 +218,7 @@ async def get_challenge_trend(
                     daily_score=0.0,
                     behavior_index=round(running_index, 3),
                     tier="needs_attention",
+                    has_record=False,
                 )
             )
             continue
@@ -229,6 +230,7 @@ async def get_challenge_trend(
                 daily_score=float(row.daily_score),
                 behavior_index=running_index,
                 tier=row.tier,
+                has_record=True,
             )
         )
 

@@ -12,6 +12,7 @@ import {
 import { apiClient } from '../api/client.js';
 import { getChallengeTrend, getTodayChallenge } from '../api/challengeApi.js';
 import { loadActiveChallenge, loadChallengeTargetOverrides } from '../utils/challengeSelection.js';
+import { buildDailyChallengeItems, getDailyAchievementScore } from '../utils/dailyChallengeMetrics.js';
 
 function toShortDate(dateText) {
   if (!dateText) return '';
@@ -39,10 +40,6 @@ function toIsoDate(date) {
 
 function clamp(value, low, high) {
   return Math.max(low, Math.min(value, high));
-}
-
-function isMissingRecord(point) {
-  return point?.daily_score == null || (Number(point?.daily_score) === 0 && Number(point?.behavior_index) === 0.5);
 }
 
 function getHeroMessage(points) {
@@ -91,8 +88,17 @@ function RiskTooltip({ active, payload, label }) {
   return (
     <div className="home-graph-tooltip">
       <span className="home-graph-tooltip-date">{toShortDate(label)}</span>
-      <strong>상태: {point.riskStageLabel}</strong>
-      <p>위험도: {point.riskPercent}%</p>
+      {point.hasBehaviorRecord ? (
+        <>
+          <strong>상태: {point.riskStageLabel}</strong>
+          <p>위험도: {point.riskPercent}%</p>
+        </>
+      ) : (
+        <>
+          <strong>기록 없음</strong>
+          <p>기본값 표시</p>
+        </>
+      )}
     </div>
   );
 }
@@ -126,6 +132,7 @@ export default function HomePage() {
   const [todayRow, setTodayRow] = useState(null);
   const [targetOverrides, setTargetOverrides] = useState({});
   const [profileOverview, setProfileOverview] = useState(null);
+  const [showPerfectCelebration, setShowPerfectCelebration] = useState(false);
 
   useEffect(() => {
     getChallengeTrend(7)
@@ -166,7 +173,7 @@ export default function HomePage() {
       const challengePoint = challengeMap.get(isoDate) ?? null;
       const baseRisk = Number(surveyMap.get(isoDate) ?? latestSurveyRisk);
       const behaviorIndex = Number(challengePoint?.behavior_index ?? 0.5);
-      const hasBehaviorRecord = !isMissingRecord(challengePoint);
+      const hasBehaviorRecord = Boolean(challengePoint?.has_record);
 
       const goodEffect = Math.max(0, 0.5 - behaviorIndex);
       const careEffect = Math.max(0, behaviorIndex - 0.5);
@@ -187,10 +194,26 @@ export default function HomePage() {
     });
   }, [profileOverview, trendData]);
 
+  const visibleChallengeItems = useMemo(
+    () => buildDailyChallengeItems(todayRow, targetOverrides).slice(0, 4),
+    [todayRow, targetOverrides],
+  );
+
   const todayHealthScore = useMemo(() => {
-    const todayBehaviorIndex = Number(todayRow?.behavior_index ?? 0.5);
-    return clamp(Math.round((1 - todayBehaviorIndex) * 100), 0, 100);
-  }, [todayRow]);
+    return clamp(getDailyAchievementScore(visibleChallengeItems), 0, 100);
+  }, [visibleChallengeItems]);
+  const hasTodayRecord = Boolean(todayRow?.id);
+
+  useEffect(() => {
+    if (!hasTodayRecord || todayHealthScore < 100) {
+      setShowPerfectCelebration(false);
+      return undefined;
+    }
+
+    setShowPerfectCelebration(true);
+    const timer = window.setTimeout(() => setShowPerfectCelebration(false), 2400);
+    return () => window.clearTimeout(timer);
+  }, [hasTodayRecord, todayHealthScore]);
 
   const scoreTone = getScoreTone(todayHealthScore);
   const todaySummaryItems = [
@@ -322,10 +345,18 @@ export default function HomePage() {
         </div>
       </article>
 
-      <article className={`card home-score-card ${scoreTone}`}>
+      <article className={`card home-score-card ${scoreTone} ${showPerfectCelebration ? 'perfect' : ''}`}>
+        {showPerfectCelebration && (
+          <div className="home-score-confetti" aria-hidden="true">
+            {Array.from({ length: 18 }, (_, index) => (
+              <span key={index} className={`home-score-confetti-piece piece-${index % 6}`} />
+            ))}
+          </div>
+        )}
         <div className="card-head">
           <div>
             <h3>오늘 건강 점수</h3>
+            {hasTodayRecord && todayHealthScore === 100 && <p className="home-score-perfect-copy">Perfect 100</p>}
           </div>
           <Link to="/checkin" className="pill-btn">
             기록하기
@@ -333,11 +364,19 @@ export default function HomePage() {
         </div>
         <div className="home-score-row">
           <div className="home-score-value">
-            <strong>{todayHealthScore}</strong>
-            <span>/100</span>
+            {hasTodayRecord ? (
+              <>
+                <strong>{todayHealthScore}</strong>
+                <span>/100</span>
+              </>
+            ) : (
+              <strong>오늘 아직 기록이 없어요</strong>
+            )}
           </div>
           <p className="home-score-copy">
-            오늘의 체크인과 챌린지 흐름을 바탕으로 계산되는 점수예요. 점수가 높을수록 좋은 생활 리듬에 가까워요.
+            {hasTodayRecord
+              ? '오늘의 물, 걷기, 운동, 수면 목표 달성도를 바탕으로 계산되는 점수예요. 오늘 목표를 많이 채울수록 점수가 높아져요.'
+              : '이 화면의 기본값은 이전 행동 지표를 이어서 보여주지만, 오늘 기록 전까지는 점수로 확정되지 않아요.'}
           </p>
         </div>
       </article>
