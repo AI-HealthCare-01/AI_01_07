@@ -87,3 +87,15 @@ class OnboardingPredictionResponse(BaseSerializerModel):
     risk_stage: RiskStage
     message: str
     recommended_actions: list[str]
+
+
+class LatestOnboardingProfileResponse(BaseSerializerModel):
+    has_onboarding: bool
+    height_cm: float | None
+    weight_kg: float | None
+    bmi: float | None
+
+
+class OnboardingRiskTrendPoint(BaseSerializerModel):
+    date: str
+    risk_probability: float

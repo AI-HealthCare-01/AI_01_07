@@ -17,7 +17,7 @@ import SurveyResultPage from './pages/SurveyResultPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 
 function hasAccessToken() {
-  return Boolean(localStorage.getItem('access_token'));
+  return Boolean(sessionStorage.getItem('access_token'));
 }
 
 function RequireAuth({ children }) {

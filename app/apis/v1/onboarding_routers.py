@@ -1,4 +1,6 @@
+import logging
 import os
+from datetime import date, timedelta
 from typing import Annotated
 
 import httpx
@@ -7,7 +9,9 @@ from fastapi.responses import ORJSONResponse as Response
 
 from app.dependencies.security import get_request_user
 from app.dtos.onboarding import (
+    LatestOnboardingProfileResponse,
     OnboardingPredictionResponse,
+    OnboardingRiskTrendPoint,
     OnboardingSurveyRequest,
     RiskStage,
 )
@@ -18,6 +22,7 @@ from app.services.notifications import NotificationService
 AI_WORKER_URL = os.getenv("AI_WORKER_URL", "http://127.0.0.1:9000")
 
 onboarding_router = APIRouter(prefix="/onboarding", tags=["onboarding"])
+logger = logging.getLogger(__name__)
 
 
 def to_model_features(req: OnboardingSurveyRequest) -> dict[str, int | float | str]:
@@ -66,6 +71,46 @@ def stage_message(stage: RiskStage) -> str:
     return "고위험군 가능성이 높습니다. 병원에서 정밀 진단을 권장합니다."
 
 
+@onboarding_router.get("/latest", response_model=LatestOnboardingProfileResponse, status_code=status.HTTP_200_OK)
+async def get_latest_onboarding_profile(user: Annotated[User, Depends(get_request_user)]) -> Response:
+    latest = await OnboardingSurvey.filter(user=user).order_by("-created_at").first()
+    if not latest:
+        data = LatestOnboardingProfileResponse(has_onboarding=False, height_cm=None, weight_kg=None, bmi=None)
+        return Response(data.model_dump(), status_code=status.HTTP_200_OK)
+
+    data = LatestOnboardingProfileResponse(
+        has_onboarding=True,
+        height_cm=float(latest.height_cm),
+        weight_kg=float(latest.weight_kg),
+        bmi=float(latest.bmi),
+    )
+    return Response(data.model_dump(), status_code=status.HTTP_200_OK)
+
+
+@onboarding_router.get("/risk-trend", response_model=list[OnboardingRiskTrendPoint], status_code=status.HTTP_200_OK)
+async def get_onboarding_risk_trend(user: Annotated[User, Depends(get_request_user)]) -> Response:
+    rows = await OnboardingSurvey.filter(user=user).order_by("created_at")
+    if not rows:
+        return Response([], status_code=status.HTTP_200_OK)
+
+    risk_by_date: dict[date, float] = {}
+    for row in rows:
+        risk_by_date[row.created_at.date()] = float(row.risk_probability)
+
+    start_date = rows[0].created_at.date()
+    today = date.today()
+    current_risk = float(risk_by_date.get(start_date, 0.0))
+    points: list[OnboardingRiskTrendPoint] = []
+    day_cursor = start_date
+    while day_cursor <= today:
+        if day_cursor in risk_by_date:
+            current_risk = float(risk_by_date[day_cursor])
+        points.append(OnboardingRiskTrendPoint(date=day_cursor.isoformat(), risk_probability=current_risk))
+        day_cursor += timedelta(days=1)
+
+    return Response([point.model_dump() for point in points], status_code=status.HTTP_200_OK)
+
+
 @onboarding_router.post("", response_model=OnboardingPredictionResponse, status_code=status.HTTP_201_CREATED)
 @onboarding_router.post("/run", response_model=OnboardingPredictionResponse, status_code=status.HTTP_201_CREATED)
 async def submit_onboarding(req: OnboardingSurveyRequest, user: Annotated[User, Depends(get_request_user)]) -> Response:
@@ -112,25 +157,29 @@ async def submit_onboarding(req: OnboardingSurveyRequest, user: Annotated[User, 
         recommended_actions=actions,
     )
     notification_service = NotificationService()
-    await notification_service.create_notification(
-        user=user,
-        notification_type="ONBOARDING_COMPLETED",
-        level="success",
-        icon="✅",
-        title="설문이 완료되었습니다.",
-        body="개인 맞춤 위험도 분석 결과가 생성되었습니다.",
-        dedupe_key=f"onboarding_completed:{user.id}:{saved.id}",
-    )
-    if stage == RiskStage.HIGH:
+    try:
         await notification_service.create_notification(
             user=user,
-            notification_type="RISK_HIGH_REALTIME",
-            level="danger",
-            icon="⚠️",
-            title="고위험군으로 분류되었습니다.",
-            body="병원에서 정밀 검진을 권장합니다.",
-            dedupe_key=f"risk_high_realtime:{user.id}:{saved.id}",
+            notification_type="ONBOARDING_COMPLETED",
+            level="success",
+            icon="✅",
+            title="설문이 완료되었습니다.",
+            body="개인 맞춤 위험도 분석 결과가 생성되었습니다.",
+            dedupe_key=f"onboarding_completed:{user.id}:{saved.id}",
         )
+        if stage == RiskStage.HIGH:
+            await notification_service.create_notification(
+                user=user,
+                notification_type="RISK_HIGH_REALTIME",
+                level="danger",
+                icon="⚠️",
+                title="고위험군으로 분류되었습니다.",
+                body="병원에서 정밀 검진을 권장합니다.",
+                dedupe_key=f"risk_high_realtime:{user.id}:{saved.id}",
+            )
+    except Exception:
+        # Keep onboarding flow successful even when notification infra fails.
+        logger.exception("Failed to create onboarding notifications for user_id=%s survey_id=%s", user.id, saved.id)
 
     data = OnboardingPredictionResponse(
         survey_id=saved.id,

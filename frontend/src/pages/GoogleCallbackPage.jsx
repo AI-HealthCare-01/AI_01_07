@@ -34,7 +34,7 @@ export default function GoogleCallbackPage() {
       return;
     }
 
-    localStorage.setItem('access_token', accessToken);
+    sessionStorage.setItem('access_token', accessToken);
     if (email) {
       setCurrentUserEmail(email);
     }

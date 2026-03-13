@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
-import { clearCurrentUserEmail, getCurrentUserEmail } from '../utils/onboardingGate.js';
+import {
+  clearCurrentUserEmail,
+  clearCurrentUserName,
+  getCurrentUserEmail,
+  getOnboardingBmiSnapshot,
+  setCurrentUserName,
+  saveOnboardingBmiSnapshot,
+} from '../utils/onboardingGate.js';
 
 const METRIC_META = {
   water_ml: { label: '수분섭취', max: 5000, unit: 'ml', lineColor: '#2f9dff' },
@@ -100,6 +107,7 @@ export default function SettingsPage() {
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [weightInput, setWeightInput] = useState('');
   const [weightOverride, setWeightOverride] = useState(null);
+  const [bmiSnapshot, setBmiSnapshot] = useState(null);
   const [notiPrefs, setNotiPrefs] = useState(() => {
     try {
       return { ...DEFAULT_NOTI_PREFS, ...(JSON.parse(localStorage.getItem(NOTI_PREF_KEY) || '{}')) };
@@ -109,14 +117,102 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    apiClient
-      .get('/v1/users/me/profile-overview')
-      .then((res) => setProfile(res.data))
-      .catch((err) => setError(err?.response?.data?.detail || '프로필 정보를 불러오지 못했습니다.'));
+    let cancelled = false;
+    const syncBmiSnapshot = (nextProfile) => {
+      const email = nextProfile?.email || getCurrentUserEmail();
+      const name = String(nextProfile?.name || '').trim();
+      if (name) {
+        setCurrentUserName(name);
+      }
+      const h = Number(nextProfile?.latest_height_cm || 0);
+      const w = Number(nextProfile?.latest_weight_kg || 0);
+      const bmi = Number(nextProfile?.bmi || 0);
+      if (email && h > 0 && w > 0 && bmi > 0) {
+        saveOnboardingBmiSnapshot(email, { height_cm: h, weight_kg: w, bmi });
+      }
+    };
+
+    const loadProfile = async () => {
+      const fillFromLatestOnboarding = async (baseProfile = {}) => {
+        try {
+          const latestRes = await apiClient.get('/v1/onboarding/latest');
+          const latest = latestRes.data || {};
+          const hasOnboarding = Boolean(latest?.has_onboarding);
+          const h = Number(latest?.height_cm || 0);
+          const w = Number(latest?.weight_kg || 0);
+          const bmi = Number(latest?.bmi || 0);
+          const merged = {
+            ...baseProfile,
+            onboarding_completed: hasOnboarding || Boolean(baseProfile?.onboarding_completed),
+            latest_height_cm: h > 0 ? h : (baseProfile?.latest_height_cm ?? null),
+            latest_weight_kg: w > 0 ? w : (baseProfile?.latest_weight_kg ?? null),
+            bmi: bmi > 0 ? bmi : (baseProfile?.bmi ?? null),
+          };
+          if (!cancelled) {
+            setProfile(merged);
+          }
+          syncBmiSnapshot(merged);
+        } catch {
+          // ignore latest-onboarding fallback errors
+        }
+      };
+
+      try {
+        const res = await apiClient.get('/v1/users/me/profile-overview');
+        if (cancelled) return;
+        const nextProfile = res.data;
+        setProfile(nextProfile);
+        syncBmiSnapshot(nextProfile);
+        if (!nextProfile?.bmi || !nextProfile?.latest_height_cm || !nextProfile?.latest_weight_kg) {
+          await fillFromLatestOnboarding(nextProfile);
+        }
+        setError('');
+        return;
+      } catch (err) {
+        const overviewError = err;
+        try {
+          const meRes = await apiClient.get('/v1/users/me');
+          if (cancelled) return;
+          const me = meRes.data || {};
+          setProfile({
+            ...me,
+            onboarding_completed: false,
+            bmi: null,
+            latest_height_cm: null,
+            latest_weight_kg: null,
+            history_7d: [],
+            risk_trend_7d: [],
+          });
+          await fillFromLatestOnboarding({
+            ...me,
+            onboarding_completed: false,
+            bmi: null,
+            latest_height_cm: null,
+            latest_weight_kg: null,
+            history_7d: [],
+            risk_trend_7d: [],
+          });
+          setError(
+            overviewError?.response?.data?.detail
+              || '프로필 일부 정보를 불러오지 못했습니다. 기본 정보만 표시합니다.',
+          );
+          return;
+        } catch {
+          if (cancelled) return;
+          setError(overviewError?.response?.data?.detail || '프로필 정보를 불러오지 못했습니다.');
+        }
+      }
+    };
+
+    loadProfile();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     const email = profile?.email || getCurrentUserEmail();
+    setBmiSnapshot(getOnboardingBmiSnapshot(email));
     if (!email) {
       setWeightOverride(null);
       return;
@@ -132,8 +228,9 @@ export default function SettingsPage() {
   const onLogout = () => {
     const confirmed = window.confirm('로그아웃하시겠습니까?');
     if (!confirmed) return;
-    localStorage.removeItem('access_token');
+    sessionStorage.removeItem('access_token');
     clearCurrentUserEmail();
+    clearCurrentUserName();
     navigate('/auth/login', { replace: true });
   };
 
@@ -222,6 +319,7 @@ export default function SettingsPage() {
     try {
       const response = await apiClient.patch('/v1/users/me', { name: trimmed });
       setProfile((prev) => ({ ...prev, ...(response.data || {}), name: trimmed }));
+      setCurrentUserName(trimmed);
       setPwSuccess('닉네임이 변경되었습니다.');
       setTimeout(() => {
         closePasswordModal();
@@ -251,22 +349,26 @@ export default function SettingsPage() {
     }
   };
 
-  const latestHeightCm = Number(profile?.latest_height_cm || 0);
-  const effectiveWeightKg = weightOverride ?? Number(profile?.latest_weight_kg || 0);
+  const latestHeightCm = Number(profile?.latest_height_cm || bmiSnapshot?.height_cm || 0);
+  const effectiveWeightKg = weightOverride ?? Number(profile?.latest_weight_kg || bmiSnapshot?.weight_kg || 0);
   const calculatedBmi = latestHeightCm > 0 && effectiveWeightKg > 0
     ? effectiveWeightKg / (((latestHeightCm / 100) ** 2) + 1e-9)
     : null;
-  const bmi = calculatedBmi ?? (profile?.bmi ?? 0);
-  const bmiPct = Math.min(100, Math.max(0, ((bmi - 15) / 45) * 100));
-  const bmiStatus = !profile?.bmi
+  const bmi = calculatedBmi ?? Number(profile?.bmi || bmiSnapshot?.bmi || 0);
+  const BMI_SCALE_MIN = 15;
+  const BMI_SCALE_MAX = 35;
+  const bmiPct = Math.min(100, Math.max(0, ((bmi - BMI_SCALE_MIN) / (BMI_SCALE_MAX - BMI_SCALE_MIN)) * 100));
+  const bmiStatus = bmi <= 0
     ? { label: 'BMI 정보가 없습니다.', tone: '' }
-    : bmi >= 25
-      ? { label: '비만', tone: 'orange' }
-      : bmi >= 23
-        ? { label: '경계', tone: 'yellow' }
-        : bmi >= 18.5
-          ? { label: '정상', tone: 'green' }
-          : { label: '저체중', tone: '' };
+    : bmi >= 30
+      ? { label: '고도비만', tone: 'red' }
+      : bmi >= 25
+        ? { label: '비만', tone: 'orange' }
+        : bmi >= 23
+          ? { label: '과체중', tone: 'yellow' }
+          : bmi >= 18.5
+            ? { label: '정상', tone: 'green' }
+            : { label: '저체중', tone: '' };
   const isPasswordMatch = newPasswordConfirm.length > 0 && newPassword === newPasswordConfirm;
   const isPasswordMismatch = newPasswordConfirm.length > 0 && newPassword !== newPasswordConfirm;
   const toggleNotiPref = (field) => {
