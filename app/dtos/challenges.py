@@ -49,3 +49,4 @@ class ChallengeTrendPointResponse(BaseSerializerModel):
     daily_score: float
     behavior_index: float
     tier: str
+    has_record: bool
