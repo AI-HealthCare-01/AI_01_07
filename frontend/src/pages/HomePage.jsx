@@ -34,6 +34,9 @@ function clamp(value, low, high) {
 }
 
 function getHeroMessage(points) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return '오늘의 챌린지 화이팅! 작은 기록 하나가 이번 주 흐름을 바꿔요.';
+  }
   const completedPoints = points.filter((point) => Number(point?.daily_score || 0) > 0);
   const todayPoint = points[points.length - 1];
 
@@ -115,11 +118,11 @@ export default function HomePage() {
 
   useEffect(() => {
     getChallengeTrend(7)
-      .then((trend) => setTrendData(trend))
+      .then((trend) => setTrendData(Array.isArray(trend) ? trend : []))
       .catch(() => setTrendData([]));
 
     getTodayChallenge()
-      .then((today) => setTodayRow(today.row))
+      .then((today) => setTodayRow(today?.row ?? null))
       .catch(() => setTodayRow(null));
 
     apiClient
@@ -132,7 +135,7 @@ export default function HomePage() {
         } else {
           setDisplayName(getCurrentUserName() || '사용자');
         }
-        setProfileOverview(res.data || null);
+        setProfileOverview(res.data && typeof res.data === 'object' ? res.data : null);
       })
       .catch(() => {
         apiClient
@@ -163,7 +166,9 @@ export default function HomePage() {
   }, []);
 
   const weeklyRiskData = useMemo(() => {
-    const surveyPoints = riskTrend.length > 0 ? riskTrend : (profileOverview?.risk_trend_7d ?? []);
+    const surveyPoints = Array.isArray(riskTrend) && riskTrend.length > 0
+      ? riskTrend
+      : (Array.isArray(profileOverview?.risk_trend_7d) ? profileOverview.risk_trend_7d : []);
     const points = surveyPoints;
 
     return points.map((point) => {
