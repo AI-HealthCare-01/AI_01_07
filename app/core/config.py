@@ -41,5 +41,9 @@ class Config(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    FIREBASE_API_KEY: str = ""
+    FIREBASE_AUTH_DOMAIN: str = ""
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_APP_ID: str = ""
     FIREBASE_CREDENTIALS_PATH: str = ""
     NOTIFICATION_SCHEDULER_ENABLED: bool = True

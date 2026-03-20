@@ -2170,6 +2170,13 @@ a {
   padding: 10px 12px;
 }
 
+.field-hint {
+  margin: -4px 2px 2px;
+  color: #6b8397;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .link-inline {
   display: inline-block;
   margin-top: 10px;

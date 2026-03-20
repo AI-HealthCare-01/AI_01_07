@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
 
 function extractSignupError(err) {
-  if (!err?.response) return '서버 연결 실패: 백엔드(127.0.0.1:8000) 실행 상태를 확인하세요.';
+  if (!err?.response) return '서버 연결에 실패했습니다. 배포 서버 또는 API 상태를 확인하세요.';
   const detail = err?.response?.data?.detail;
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail) && detail.length > 0) {
@@ -12,6 +12,32 @@ function extractSignupError(err) {
     if (first?.msg) return first.msg;
   }
   return `회원가입 실패 (HTTP ${err?.response?.status ?? 'unknown'})`;
+}
+
+function isValidPassword(password) {
+  return (
+    password.length >= 8
+    && /[A-Z]/.test(password)
+    && /[a-z]/.test(password)
+    && /[0-9]/.test(password)
+    && /[^a-zA-Z0-9]/.test(password)
+  );
+}
+
+function isValidPhoneNumber(phoneNumber) {
+  return /^(010-\d{4}-\d{4}|010\d{8}|\+8210\d{8})$/.test(phoneNumber);
+}
+
+function isOverFourteen(birthDate) {
+  if (!birthDate) return false;
+  const today = new Date();
+  const birthday = new Date(birthDate);
+  let age = today.getFullYear() - birthday.getFullYear();
+  const monthDiff = today.getMonth() - birthday.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthday.getDate())) {
+    age -= 1;
+  }
+  return age >= 14;
 }
 
 export default function SignupPage() {
@@ -38,6 +64,18 @@ export default function SignupPage() {
 
     if (form.password !== form.passwordConfirm) {
       setError('비밀번호와 비밀번호 확인이 일치하지 않습니다.');
+      return;
+    }
+    if (!isValidPassword(form.password)) {
+      setError('비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 각각 하나 이상 포함해야 합니다.');
+      return;
+    }
+    if (!isValidPhoneNumber(form.phone_number)) {
+      setError('휴대폰 번호는 01012345678, 010-1234-5678, +821012345678 형식만 가능합니다.');
+      return;
+    }
+    if (!isOverFourteen(form.birth_date)) {
+      setError('서비스 약관에 따라 만 14세 미만은 회원가입이 불가합니다.');
       return;
     }
 
@@ -73,11 +111,12 @@ export default function SignupPage() {
           />
           <input
             type="password"
-            placeholder="비밀번호 (8자 이상)"
+            placeholder="비밀번호 (예: Password123!)"
             value={form.password}
             onChange={onChange('password')}
             required
           />
+          <p className="field-hint">8자 이상, 대문자/소문자/숫자/특수문자를 각각 포함해야 합니다.</p>
           <input
             type="password"
             placeholder="비밀번호 확인"
@@ -108,6 +147,7 @@ export default function SignupPage() {
             onChange={onChange('phone_number')}
             required
           />
+          <p className="field-hint">허용 형식: 01012345678, 010-1234-5678, +821012345678</p>
           <button type="submit" className="save-btn" disabled={isSubmitting}>
             {isSubmitting ? '가입 중...' : '회원가입 완료'}
           </button>
