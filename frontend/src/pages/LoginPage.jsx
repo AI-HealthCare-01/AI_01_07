@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
 import { onboardingApi } from '../api/onboardingApi.js';
-import { firebaseAuth, googleProvider } from '../lib/firebase.js';
+import { getFirebaseAuth, googleProvider } from '../lib/firebase.js';
 import { hasCompletedOnboarding, setCurrentUserEmail, syncOnboardingCompleted } from '../utils/onboardingGate.js';
 
 export default function LoginPage() {
@@ -43,6 +43,7 @@ export default function LoginPage() {
 
   const onGoogleLogin = async () => {
     setError('');
+    const firebaseAuth = await getFirebaseAuth();
     if (!firebaseAuth) {
       setError('Firebase 설정이 비어 있습니다. VITE_FIREBASE_* 환경변수를 확인하세요.');
       return;

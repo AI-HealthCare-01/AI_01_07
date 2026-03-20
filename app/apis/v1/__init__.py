@@ -10,6 +10,7 @@ from app.apis.v1.meal_routers import meal_router
 from app.apis.v1.notification_routers import notification_router
 from app.apis.v1.onboarding_routers import onboarding_router
 from app.apis.v1.prediction_routers import prediction_router
+from app.apis.v1.public_routers import public_router
 from app.apis.v1.user_challenge_routers import user_challenge_router
 from app.apis.v1.user_routers import user_router
 
@@ -22,6 +23,7 @@ v1_routers.include_router(user_router)
 v1_routers.include_router(dashboard_router)
 v1_routers.include_router(food_router)
 v1_routers.include_router(prediction_router)
+v1_routers.include_router(public_router)
 v1_routers.include_router(meal_router)
 v1_routers.include_router(onboarding_router)
 v1_routers.include_router(notification_router)
