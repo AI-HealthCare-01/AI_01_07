@@ -29,7 +29,9 @@ class UserManageService:
 
     async def update_user(self, user: User, data: UserUpdateRequest) -> User:
         if user.is_guest:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="게스트 계정은 회원정보를 수정할 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="게스트 계정은 회원정보를 수정할 수 없습니다."
+            )
         if data.email:
             await self.auth_service.check_email_exists(data.email)
         if data.phone_number:
@@ -51,7 +53,9 @@ class UserManageService:
 
     async def change_password(self, user: User, data: UserPasswordChangeRequest) -> None:
         if user.is_guest:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="게스트 계정은 비밀번호를 변경할 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="게스트 계정은 비밀번호를 변경할 수 없습니다."
+            )
         if not verify_password(data.old_password, user.hashed_password):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="기존 비밀번호가 올바르지 않습니다.")
 
@@ -61,7 +65,9 @@ class UserManageService:
 
     async def verify_password(self, user: User, data: UserPasswordVerifyRequest) -> None:
         if user.is_guest:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="게스트 계정은 비밀번호를 확인할 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="게스트 계정은 비밀번호를 확인할 수 없습니다."
+            )
         if not verify_password(data.old_password, user.hashed_password):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="기존 비밀번호가 올바르지 않습니다.")
 
