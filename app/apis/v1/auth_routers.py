@@ -12,6 +12,7 @@ from app.core.config import Env
 from app.dtos.auth import (
     FirebaseGoogleLoginRequest,
     FirebaseGoogleLoginResponse,
+    GuestLoginResponse,
     LoginRequest,
     LoginResponse,
     SignUpRequest,
@@ -46,6 +47,31 @@ async def login(
     tokens = await auth_service.login(user)
     resp = Response(
         content=LoginResponse(access_token=str(tokens["access_token"])).model_dump(), status_code=status.HTTP_200_OK
+    )
+    resp.set_cookie(
+        key="refresh_token",
+        value=str(tokens["refresh_token"]),
+        httponly=True,
+        secure=True if config.ENV == Env.PROD else False,
+        domain=config.COOKIE_DOMAIN or None,
+        expires=tokens["access_token"].payload["exp"],
+    )
+    return resp
+
+
+@auth_router.post("/guest-login", response_model=GuestLoginResponse, status_code=status.HTTP_200_OK)
+async def guest_login(
+    auth_service: Annotated[AuthService, Depends(AuthService)],
+) -> Response:
+    user = await auth_service.create_guest_user()
+    tokens = await auth_service.login(user)
+    resp = Response(
+        content=GuestLoginResponse(
+            access_token=str(tokens["access_token"]),
+            email=user.email,
+            name=user.name,
+        ).model_dump(),
+        status_code=status.HTTP_200_OK,
     )
     resp.set_cookie(
         key="refresh_token",

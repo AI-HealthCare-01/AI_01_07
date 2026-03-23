@@ -37,3 +37,9 @@ class FirebaseGoogleLoginRequest(BaseModel):
 
 class FirebaseGoogleLoginResponse(LoginResponse):
     email: EmailStr
+
+
+class GuestLoginResponse(LoginResponse):
+    email: EmailStr
+    name: str
+    is_guest: bool = True
