@@ -228,13 +228,24 @@ export default function SettingsPage() {
   const onLogout = () => {
     const confirmed = window.confirm('로그아웃하시겠습니까?');
     if (!confirmed) return;
-    sessionStorage.removeItem('access_token');
-    clearCurrentUserEmail();
-    clearCurrentUserName();
-    navigate('/auth/login', { replace: true });
+
+    const finishLogout = () => {
+      sessionStorage.removeItem('access_token');
+      clearCurrentUserEmail();
+      clearCurrentUserName();
+      navigate('/auth/login', { replace: true });
+    };
+
+    if (profile?.is_guest) {
+      apiClient.delete('/v1/users/me').catch(() => {}).finally(finishLogout);
+      return;
+    }
+
+    finishLogout();
   };
 
   const openPasswordModal = () => {
+    if (profile?.is_guest) return;
     setIsPwModalOpen(true);
     setOldPassword('');
     setIsOldPasswordVerified(false);
@@ -268,6 +279,10 @@ export default function SettingsPage() {
   };
 
   const onSubmitPasswordChange = async () => {
+    if (profile?.is_guest) {
+      setPwError('게스트 계정은 비밀번호를 변경할 수 없습니다.');
+      return;
+    }
     if (!isOldPasswordVerified) return;
     if (!newPassword || !newPasswordConfirm) {
       setPwError('새 비밀번호와 비밀번호 확인을 모두 입력하세요.');
@@ -298,6 +313,10 @@ export default function SettingsPage() {
   };
 
   const onSubmitNicknameChange = async () => {
+    if (profile?.is_guest) {
+      setPwError('게스트 계정의 닉네임은 변경할 수 없습니다.');
+      return;
+    }
     if (!isOldPasswordVerified) return;
     const trimmed = (newNickname || '').trim();
     if (trimmed.length < 2) {
@@ -407,8 +426,9 @@ export default function SettingsPage() {
           </div>
         </div>
         <button type="button" className="pill-btn full-width" onClick={openPasswordModal}>
-          회원정보 수정
+          {profile?.is_guest ? '게스트 계정은 수정할 수 없습니다' : '회원정보 수정'}
         </button>
+        {profile?.is_guest && <p className="muted">게스트 계정은 당일 체험 전용이며 닉네임과 비밀번호를 변경할 수 없습니다.</p>}
         </article>
 
         <article className="card">
@@ -502,9 +522,11 @@ export default function SettingsPage() {
         <button type="button" className="danger-btn" onClick={onLogout}>
           로그아웃
         </button>
-        <button type="button" className="danger-outline-btn" onClick={onWithdraw}>
-          회원탈퇴
-        </button>
+        {!profile?.is_guest && (
+          <button type="button" className="danger-outline-btn" onClick={onWithdraw}>
+            회원탈퇴
+          </button>
+        )}
         {error && <p className="status">{error}</p>}
         </article>
       </section>

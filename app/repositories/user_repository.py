@@ -32,6 +32,8 @@ class UserRepository:
         *,
         is_active: bool = True,
         is_admin: bool = False,
+        is_guest: bool = False,
+        expires_at: datetime | None = None,
     ) -> User:
         return await self._model.create(
             email=email,
@@ -42,6 +44,8 @@ class UserRepository:
             birthday=birthday,
             is_active=is_active,
             is_admin=is_admin,
+            is_guest=is_guest,
+            expires_at=expires_at,
         )
 
     async def get_user_by_email(self, email: str) -> User | None:

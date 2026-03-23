@@ -39,6 +39,7 @@ class UserInfoResponse(BaseSerializerModel):
     birthday: date
     gender: Gender
     is_admin: bool
+    is_guest: bool
     created_at: datetime
 
 
@@ -70,6 +71,7 @@ class UserProfileOverviewResponse(BaseSerializerModel):
     birthday: date
     gender: Gender
     is_admin: bool
+    is_guest: bool
     onboarding_completed: bool
     bmi: float | None
     latest_height_cm: float | None
@@ -86,6 +88,7 @@ class AdminUserListItemResponse(BaseSerializerModel):
     gender: Gender
     is_active: bool
     is_admin: bool
+    is_guest: bool
     created_at: datetime
     last_login: datetime | None
 
