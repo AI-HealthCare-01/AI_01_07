@@ -2184,6 +2184,21 @@ a {
   font-weight: 700;
 }
 
+.auth-link-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.link-inline-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
 .gradient-card {
   background: linear-gradient(140deg, #4652f3, #8d57f8);
   color: white;

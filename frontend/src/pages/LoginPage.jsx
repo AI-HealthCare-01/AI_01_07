@@ -4,7 +4,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
 import { onboardingApi } from '../api/onboardingApi.js';
 import { getFirebaseAuth, googleProvider } from '../lib/firebase.js';
-import { hasCompletedOnboarding, setCurrentUserEmail, syncOnboardingCompleted } from '../utils/onboardingGate.js';
+import {
+  hasCompletedOnboarding,
+  setCurrentUserEmail,
+  setCurrentUserName,
+  syncOnboardingCompleted,
+} from '../utils/onboardingGate.js';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -63,6 +68,20 @@ export default function LoginPage() {
     }
   };
 
+  const onGuestLogin = async () => {
+    setError('');
+
+    try {
+      const response = await apiClient.post('/v1/auth/guest-login');
+      sessionStorage.setItem('access_token', response.data.access_token);
+      setCurrentUserEmail(response.data.email);
+      setCurrentUserName(response.data.name);
+      navigate('/survey');
+    } catch (err) {
+      setError(err?.response?.data?.detail || '게스트 로그인 실패');
+    }
+  };
+
   return (
     <section className="auth-wrap">
       <article className="auth-card">
@@ -91,9 +110,14 @@ export default function LoginPage() {
         <button type="button" className="google-btn" onClick={onGoogleLogin}>
           Google로 시작하기
         </button>
-        <Link to="/auth/signup" className="link-inline">
-          회원가입 화면 보기
-        </Link>
+        <div className="auth-link-row">
+          <Link to="/auth/signup" className="link-inline">
+            회원가입 화면 보기
+          </Link>
+          <button type="button" className="link-inline link-inline-button" onClick={onGuestLogin}>
+            게스트 로그인
+          </button>
+        </div>
       </article>
     </section>
   );
