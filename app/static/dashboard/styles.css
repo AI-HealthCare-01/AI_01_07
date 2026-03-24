@@ -1,0 +1,10 @@
+body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background:#0b0b0f; color:#fff; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { background: #151522; border: 1px solid #2a2a3a; border-radius: 14px; padding: 16px; }
+.big { font-size: 28px; font-weight: 700; margin-top: 8px; }
+.sub { opacity: .85; margin-top: 6px; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.chip { background:#23233a; border:1px solid #333354; padding:6px 10px; border-radius:999px; font-size:12px; }
+pre { white-space: pre-wrap; background:#101018; padding:12px; border-radius:10px; border:1px solid #26263a; }
+@media (max-width: 900px){ .cards{ grid-template-columns: 1fr; } }

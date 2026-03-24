@@ -1,10 +1,16 @@
+import secrets
+from datetime import date, datetime, time, timedelta
+
 from fastapi.exceptions import HTTPException
 from pydantic import EmailStr
 from starlette import status
 from tortoise.transactions import in_transaction
 
+from app.core import config
 from app.dtos.auth import LoginRequest, SignUpRequest
-from app.models.users import User
+from app.models.checkin import DailyHealthCheck
+from app.models.predictions import DiabetesPrediction, Meal, OnboardingSurvey
+from app.models.users import Gender, User
 from app.repositories.user_repository import UserRepository
 from app.services.jwt import JwtService
 from app.utils.common import normalize_phone_number
@@ -65,6 +71,39 @@ class AuthService:
         await self.user_repo.update_last_login(user.id)
         return self.jwt_service.issue_jwt_pair(user)
 
+    async def create_guest_user(self) -> User:
+        phone_number = await self._generate_unique_dummy_phone_number()
+        guest_token = secrets.token_hex(4)
+        expires_at = self._guest_expiration()
+        random_password = f"Guest!{secrets.token_urlsafe(12)}"
+
+        async with in_transaction():
+            user = await self.user_repo.create_user(
+                email=f"g{guest_token}@g.ai",
+                hashed_password=hash_password(random_password),
+                name="guest_pending",
+                phone_number=phone_number,
+                gender=Gender.MALE,
+                birthday=date(2000, 1, 1),
+                is_guest=True,
+                expires_at=expires_at,
+            )
+            user.name = f"guest_{user.id}"
+            user.updated_at = datetime.now(config.TIMEZONE)
+            await user.save(update_fields=["name", "updated_at"])
+            return user
+
+    async def cleanup_guest_user(self, user: User) -> None:
+        if not user.is_guest:
+            return
+
+        async with in_transaction():
+            await DailyHealthCheck.filter(user=user).delete()
+            await OnboardingSurvey.filter(user=user).delete()
+            await DiabetesPrediction.filter(user=user).delete()
+            await Meal.filter(user=user).delete()
+            await user.delete()
+
     async def check_email_exists(self, email: str | EmailStr) -> None:
         if await self.user_repo.exists_by_email(email):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용중인 이메일입니다.")
@@ -72,3 +111,33 @@ class AuthService:
     async def check_phone_number_exists(self, phone_number: str) -> None:
         if await self.user_repo.exists_by_phone_number(phone_number):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용중인 휴대폰 번호입니다.")
+
+    async def login_or_signup_google(self, *, email: str, name: str | None = None) -> User:
+        user = await self.user_repo.get_user_by_email(email)
+        if user:
+            return user
+
+        default_name = (name or email.split("@")[0] or "google_user")[:20]
+        phone_number = await self._generate_unique_dummy_phone_number()
+        random_password = f"Google!{secrets.token_urlsafe(12)}"
+
+        async with in_transaction():
+            return await self.user_repo.create_user(
+                email=email,
+                hashed_password=hash_password(random_password),
+                name=default_name,
+                phone_number=phone_number,
+                gender=Gender.MALE,
+                birthday=date(2000, 1, 1),
+            )
+
+    async def _generate_unique_dummy_phone_number(self) -> str:
+        while True:
+            candidate = f"010{secrets.randbelow(100_000_000):08d}"
+            if not await self.user_repo.exists_by_phone_number(candidate):
+                return candidate
+
+    def _guest_expiration(self) -> datetime:
+        now = datetime.now(config.TIMEZONE)
+        tomorrow = now.date() + timedelta(days=1)
+        return datetime.combine(tomorrow, time.min, tzinfo=config.TIMEZONE)

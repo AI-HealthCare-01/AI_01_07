@@ -12,3 +12,10 @@ wheels/
 .coverage
 *.coverage
 .coverage.*
+
+# frontend local artifacts
+frontend/node_modules/
+frontend/.env.local
+frontend/.env.production
+artifacts/
+envs/firebase-service-account.json

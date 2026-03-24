@@ -18,6 +18,8 @@ class User(models.Model):
     phone_number = fields.CharField(max_length=11)
     is_active = fields.BooleanField(default=True)
     is_admin = fields.BooleanField(default=False)
+    is_guest = fields.BooleanField(default=False)
+    expires_at = fields.DatetimeField(null=True)
     last_login = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

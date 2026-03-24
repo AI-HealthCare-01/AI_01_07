@@ -29,3 +29,17 @@ class LoginResponse(BaseModel):
 
 
 class TokenRefreshResponse(LoginResponse): ...
+
+
+class FirebaseGoogleLoginRequest(BaseModel):
+    id_token: str
+
+
+class FirebaseGoogleLoginResponse(LoginResponse):
+    email: EmailStr
+
+
+class GuestLoginResponse(LoginResponse):
+    email: EmailStr
+    name: str
+    is_guest: bool = True
